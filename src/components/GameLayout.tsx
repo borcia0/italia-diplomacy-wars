@@ -4,10 +4,13 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../hooks/useAuth';
-import { Shield, Users, Map, Bell, Key, Star } from 'lucide-react';
+import { useGameState } from '../hooks/useGameState';
+import { Shield, Users, Map, Bell, Key, Star, Sword, Wifi } from 'lucide-react';
 import DiplomacyPanel from './DiplomacyPanel';
 import ResourcesPanel from './ResourcesPanel';
 import MarketPanel from './MarketPanel';
+import OnlinePlayersPanel from './OnlinePlayersPanel';
+import BattleSystem from './BattleSystem';
 
 interface GameLayoutProps {
   children: React.ReactNode;
@@ -15,7 +18,8 @@ interface GameLayoutProps {
 
 const GameLayout = ({ children }: GameLayoutProps) => {
   const { user, logout } = useAuth();
-  const [activePanel, setActivePanel] = useState<'map' | 'diplomacy' | 'resources' | 'market'>('map');
+  const { gameState } = useGameState();
+  const [activePanel, setActivePanel] = useState<'map' | 'diplomacy' | 'resources' | 'market' | 'players' | 'battle'>('map');
 
   const renderPanel = () => {
     switch (activePanel) {
@@ -25,10 +29,19 @@ const GameLayout = ({ children }: GameLayoutProps) => {
         return <ResourcesPanel />;
       case 'market':
         return <MarketPanel />;
+      case 'players':
+        return <OnlinePlayersPanel />;
+      case 'battle':
+        return <BattleSystem />;
       default:
         return children;
     }
   };
+
+  const onlinePlayersCount = gameState?.players.filter(p => p.isOnline).length || 0;
+  const activeWarsCount = gameState?.activeWars.filter(w => 
+    w.attackerId === user?.id || w.defenderId === user?.id
+  ).length || 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-gray-50 to-red-50">
@@ -46,6 +59,10 @@ const GameLayout = ({ children }: GameLayoutProps) => {
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                 {user?.currentRegion || 'Nessuna Regione'}
               </Badge>
+              <div className="flex items-center space-x-1">
+                <Wifi className="w-4 h-4 text-green-500" />
+                <Badge className="bg-blue-100 text-blue-800">{onlinePlayersCount} Online</Badge>
+              </div>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -78,6 +95,27 @@ const GameLayout = ({ children }: GameLayoutProps) => {
               >
                 <Map className="w-4 h-4 mr-2" />
                 Mappa
+              </Button>
+              <Button
+                variant={activePanel === 'players' ? 'default' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => setActivePanel('players')}
+              >
+                <Users className="w-4 h-4 mr-2" />
+                Giocatori ({onlinePlayersCount})
+              </Button>
+              <Button
+                variant={activePanel === 'battle' ? 'default' : 'ghost'}
+                className="w-full justify-start"
+                onClick={() => setActivePanel('battle')}
+              >
+                <Sword className="w-4 h-4 mr-2" />
+                Battaglia
+                {activeWarsCount > 0 && (
+                  <Badge className="ml-2 bg-red-500 text-white text-xs">
+                    {activeWarsCount}
+                  </Badge>
+                )}
               </Button>
               <Button
                 variant={activePanel === 'diplomacy' ? 'default' : 'ghost'}

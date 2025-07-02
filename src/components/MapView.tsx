@@ -1,9 +1,10 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Gamepad, Flag } from 'lucide-react';
+import { useGameState } from '../hooks/useGameState';
+import { useAuth } from '../hooks/useAuth';
+import { Shield, Gamepad, Flag, Sword, Users } from 'lucide-react';
 
 interface Region {
   id: string;
@@ -17,6 +18,8 @@ interface Region {
 
 const MapView = () => {
   const [selectedRegion, setSelectedRegion] = useState<Region | null>(null);
+  const { gameState, attackRegion, declareWar } = useGameState();
+  const { user } = useAuth();
 
   const regions: Region[] = [
     { id: 'lazio', name: 'Lazio', capital: 'Roma', owner: 'Tu', status: 'controlled', population: 5800000, resources: ['Pizza', 'Pietra'] },
@@ -26,6 +29,40 @@ const MapView = () => {
     { id: 'piemonte', name: 'Piemonte', capital: 'Torino', owner: 'GiocatoreZ', status: 'enemy', population: 4400000, resources: ['Ferro', 'Carbone'] },
     { id: 'veneto', name: 'Veneto', capital: 'Venezia', owner: 'Neutrale', status: 'neutral', population: 4900000, resources: ['Cibo', 'Pizza'] },
   ];
+
+  // Update regions based on game state
+  const updatedRegions = regions.map(region => {
+    if (!gameState) return region;
+    
+    const ownerId = gameState.regionOwnership[region.id];
+    const ownerPlayer = gameState.players.find(p => p.id === ownerId);
+    
+    if (ownerId === user?.id) {
+      return { ...region, owner: 'Tu', status: 'controlled' as const };
+    } else if (ownerPlayer) {
+      // Check if allied
+      const isAllied = gameState.alliances.some(
+        alliance => 
+          (alliance.player1Id === user?.id && alliance.player2Id === ownerId) ||
+          (alliance.player2Id === user?.id && alliance.player1Id === ownerId)
+      );
+      
+      // Check if at war
+      const isAtWar = gameState.activeWars.some(
+        war => 
+          (war.attackerId === user?.id && war.defenderId === ownerId) ||
+          (war.defenderId === user?.id && war.attackerId === ownerId)
+      );
+      
+      return { 
+        ...region, 
+        owner: ownerPlayer.username, 
+        status: isAtWar ? 'enemy' as const : isAllied ? 'allied' as const : 'neutral' as const 
+      };
+    }
+    
+    return region;
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -45,21 +82,46 @@ const MapView = () => {
     }
   };
 
+  const handleAttackRegion = async (region: Region) => {
+    if (!gameState || !user) return;
+    
+    const ownerId = gameState.regionOwnership[region.id];
+    if (ownerId && ownerId !== user.id) {
+      await attackRegion(region.id, ownerId);
+      // Show notification or update UI
+      console.log(`Attacco dichiarato su ${region.name}!`);
+    }
+  };
+
   return (
     <div className="h-full flex">
       {/* Map Area */}
       <div className="flex-1 p-6">
         <div className="bg-gradient-to-br from-green-100 via-white to-red-100 rounded-lg shadow-lg h-full relative overflow-hidden">
           <div className="absolute inset-0 p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-              Regno d'Italia - Anno 2024
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">
+                Regno d'Italia - Anno 2024
+              </h2>
+              {gameState && (
+                <div className="flex items-center space-x-4">
+                  <Badge className="bg-blue-100 text-blue-800">
+                    <Users className="w-3 h-3 mr-1" />
+                    {gameState.players.length} Giocatori
+                  </Badge>
+                  <Badge className="bg-red-100 text-red-800">
+                    <Sword className="w-3 h-3 mr-1" />
+                    {gameState.activeWars.length} Guerre
+                  </Badge>
+                </div>
+              )}
+            </div>
             
             {/* Simplified Italy Map Grid */}
             <div className="grid grid-cols-3 gap-4 h-5/6 max-w-4xl mx-auto">
               {/* North */}
               <div className="col-span-3 grid grid-cols-3 gap-2">
-                {regions.filter(r => ['piemonte', 'lombardia', 'veneto'].includes(r.id)).map(region => (
+                {updatedRegions.filter(r => ['piemonte', 'lombardia', 'veneto'].includes(r.id)).map(region => (
                   <div
                     key={region.id}
                     className={`${getStatusColor(region.status)} rounded-lg p-4 cursor-pointer transition-all duration-200 transform hover:scale-105 shadow-md`}
@@ -76,17 +138,21 @@ const MapView = () => {
               
               {/* Center */}
               <div className="col-span-3 flex justify-center">
-                {regions.filter(r => r.id === 'lazio').map(region => (
+                {updatedRegions.filter(r => r.id === 'lazio').map(region => (
                   <div
                     key={region.id}
-                    className={`${getStatusColor(region.status)} rounded-lg p-6 cursor-pointer transition-all duration-200 transform hover:scale-105 shadow-lg ring-4 ring-yellow-300`}
+                    className={`${getStatusColor(region.status)} rounded-lg p-6 cursor-pointer transition-all duration-200 transform hover:scale-105 shadow-lg ${
+                      region.status === 'controlled' ? 'ring-4 ring-yellow-300' : ''
+                    }`}
                     onClick={() => setSelectedRegion(region)}
                   >
                     <div className="text-white text-center">
                       <Shield className="w-8 h-8 mx-auto mb-2" />
                       <h3 className="font-bold">{region.name}</h3>
                       <p className="text-sm opacity-90">{region.capital}</p>
-                      <Badge className="mt-2 bg-yellow-100 text-yellow-800">TUA CAPITALE</Badge>
+                      {region.status === 'controlled' && (
+                        <Badge className="mt-2 bg-yellow-100 text-yellow-800">TUA CAPITALE</Badge>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -94,7 +160,7 @@ const MapView = () => {
               
               {/* South */}
               <div className="col-span-3 grid grid-cols-2 gap-4">
-                {regions.filter(r => ['campania', 'sicilia'].includes(r.id)).map(region => (
+                {updatedRegions.filter(r => ['campania', 'sicilia'].includes(r.id)).map(region => (
                   <div
                     key={region.id}
                     className={`${getStatusColor(region.status)} rounded-lg p-4 cursor-pointer transition-all duration-200 transform hover:scale-105 shadow-md`}
@@ -194,14 +260,22 @@ const MapView = () => {
                     <Button className="w-full">
                       Proponi Alleanza
                     </Button>
-                    <Button className="w-full" variant="destructive">
+                    <Button 
+                      className="w-full" 
+                      variant="destructive"
+                      onClick={() => handleAttackRegion(selectedRegion)}
+                    >
                       <Flag className="w-4 h-4 mr-2" />
                       Dichiara Guerra
                     </Button>
                   </div>
                 ) : selectedRegion.status === 'enemy' ? (
-                  <Button className="w-full" variant="destructive">
-                    <Flag className="w-4 h-4 mr-2" />
+                  <Button 
+                    className="w-full" 
+                    variant="destructive"
+                    onClick={() => handleAttackRegion(selectedRegion)}
+                  >
+                    <Sword className="w-4 h-4 mr-2" />
                     Attacca Territorio
                   </Button>
                 ) : (
