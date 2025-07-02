@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,7 +53,7 @@ const GameLayout = ({ children }: GameLayoutProps) => {
                 <div className="w-8 h-8 bg-gradient-to-br from-green-600 to-red-600 rounded-full flex items-center justify-center">
                   <Shield className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-xl font-bold text-gray-900">La Diplomazia</h1>
+                <h1 className="text-xl font-bold text-gray-900">Taverna Domination</h1>
               </div>
               <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
                 {user?.currentRegion || 'Nessuna Regione'}

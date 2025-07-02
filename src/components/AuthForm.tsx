@@ -45,7 +45,7 @@ const AuthForm = () => {
           <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-600 to-red-600 rounded-full flex items-center justify-center mb-4">
             <Shield className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">La Diplomazia</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Taverna Domination</h1>
           <p className="text-gray-600">Conquista l'Italia attraverso strategia e diplomazia</p>
         </div>
 
