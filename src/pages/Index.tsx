@@ -2,7 +2,7 @@
 import React from 'react';
 import { BrowserRouter as Router } from 'react-router-dom';
 import GameLayout from '../components/GameLayout';
-import MapView from '../components/MapView';
+import InteractiveMap from '../components/InteractiveMap';
 import { useAuth } from '../hooks/useAuth';
 import AuthForm from '../components/AuthForm';
 
@@ -23,7 +23,7 @@ const Index = () => {
 
   return (
     <GameLayout>
-      <MapView />
+      <InteractiveMap />
     </GameLayout>
   );
 };
