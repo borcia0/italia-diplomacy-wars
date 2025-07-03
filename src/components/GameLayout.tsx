@@ -1,16 +1,15 @@
-
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useAuth } from '../hooks/useAuth';
-import { useGameState } from '../hooks/useGameState';
+import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
+import { useSupabaseGame } from '../hooks/useSupabaseGame';
 import { Shield, Users, Map, Bell, Key, Star, Sword, Wifi, Menu, X, Home } from 'lucide-react';
 import DiplomacyPanel from './DiplomacyPanel';
 import ResourcesPanel from './ResourcesPanel';
 import MarketPanel from './MarketPanel';
-import OnlinePlayersPanel from './OnlinePlayersPanel';
+import RealPlayersPanel from './RealPlayersPanel';
 import BattleSystem from './BattleSystem';
 
 interface GameLayoutProps {
@@ -18,8 +17,8 @@ interface GameLayoutProps {
 }
 
 const GameLayout = ({ children }: GameLayoutProps) => {
-  const { user, logout } = useAuth();
-  const { gameState } = useGameState();
+  const { user, logout } = useSupabaseAuth();
+  const { players, wars, currentPlayer, loading } = useSupabaseGame();
   const [activePanel, setActivePanel] = useState<'map' | 'diplomacy' | 'resources' | 'market' | 'players' | 'battle'>('map');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -32,7 +31,7 @@ const GameLayout = ({ children }: GameLayoutProps) => {
       case 'market':
         return <MarketPanel />;
       case 'players':
-        return <OnlinePlayersPanel />;
+        return <RealPlayersPanel />;
       case 'battle':
         return <BattleSystem />;
       default:
@@ -40,10 +39,10 @@ const GameLayout = ({ children }: GameLayoutProps) => {
     }
   };
 
-  const onlinePlayersCount = gameState?.players.filter(p => p.isOnline).length || 0;
-  const activeWarsCount = gameState?.activeWars.filter(w => 
-    w.attackerId === user?.id || w.defenderId === user?.id
-  ).length || 0;
+  const onlinePlayersCount = players.filter(p => p.id !== user?.id).length;
+  const activeWarsCount = wars.filter(w => 
+    w.attacker_id === user?.id || w.defender_id === user?.id
+  ).length;
 
   const navItems = [
     { id: 'map', icon: Map, label: 'Mappa', count: null, emoji: '🗺️' },
@@ -54,9 +53,17 @@ const GameLayout = ({ children }: GameLayoutProps) => {
     { id: 'market', icon: Key, label: 'Market', count: null, emoji: '💰' },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 via-gray-50 to-red-50">
+        <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-600 border-t-transparent"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 via-gray-50 to-red-50">
-      {/* Header Mobile Ottimizzato - Più alto e leggibile */}
+      {/* Header Mobile Ottimizzato */}
       <header className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
         <div className="px-4">
           <div className="flex justify-between items-center h-16">
@@ -85,12 +92,15 @@ const GameLayout = ({ children }: GameLayoutProps) => {
 
             <div className="flex items-center space-x-2">
               <Badge variant="outline" className="hidden sm:flex bg-green-50 text-green-700 border-green-200 text-xs px-3 py-1">
-                📍 {user?.currentRegion || 'Nessuna Regione'}
+                👑 {currentPlayer?.username || 'Sovrano'}
+              </Badge>
+              <Badge variant="outline" className="hidden sm:flex bg-blue-50 text-blue-700 border-blue-200 text-xs px-3 py-1">
+                📍 {currentPlayer?.current_region || 'Regno'}
               </Badge>
               <div className="flex items-center space-x-1">
                 <Wifi className="w-4 h-4 text-green-500" />
                 <Badge className="bg-blue-100 text-blue-800 text-sm px-2 py-1">
-                  {onlinePlayersCount}
+                  {players.length}
                 </Badge>
               </div>
               <Button
@@ -107,7 +117,7 @@ const GameLayout = ({ children }: GameLayoutProps) => {
       </header>
 
       <div className="flex h-[calc(100vh-4rem)]">
-        {/* Desktop Sidebar - Migliorato */}
+        {/* Desktop Sidebar */}
         <div className="hidden lg:block w-72 bg-white shadow-lg border-r border-gray-200">
           <ScrollArea className="h-full">
             <div className="p-4">
@@ -138,58 +148,36 @@ const GameLayout = ({ children }: GameLayoutProps) => {
               </nav>
             </div>
 
-            {/* Quick Stats - Migliorato */}
+            {/* Quick Stats */}
             <div className="p-4 border-t border-gray-200">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">📊 Le Tue Risorse</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-3 rounded-lg text-center border">
                   <div className="text-2xl mb-1">🍞</div>
                   <div className="text-xs text-gray-600">Cibo</div>
-                  <div className="font-bold text-lg">{user?.resources?.cibo || 0}</div>
+                  <div className="font-bold text-lg">{currentPlayer?.resources?.cibo || 0}</div>
                 </div>
                 <div className="bg-gradient-to-r from-gray-50 to-slate-50 p-3 rounded-lg text-center border">
                   <div className="text-2xl mb-1">🏗️</div>
                   <div className="text-xs text-gray-600">Pietra</div>
-                  <div className="font-bold text-lg">{user?.resources?.pietra || 0}</div>
+                  <div className="font-bold text-lg">{currentPlayer?.resources?.pietra || 0}</div>
                 </div>
                 <div className="bg-gradient-to-r from-red-50 to-orange-50 p-3 rounded-lg text-center border">
                   <div className="text-2xl mb-1">⚔️</div>
                   <div className="text-xs text-gray-600">Ferro</div>
-                  <div className="font-bold text-lg">{user?.resources?.ferro || 0}</div>
+                  <div className="font-bold text-lg">{currentPlayer?.resources?.ferro || 0}</div>
                 </div>
                 <div className="bg-gradient-to-r from-red-50 to-yellow-50 p-3 rounded-lg text-center border">
                   <div className="text-2xl mb-1">🍕</div>
                   <div className="text-xs text-gray-600">Pizza</div>
-                  <div className="font-bold text-lg">{user?.resources?.pizza || 0}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Notifications - Migliorato */}
-            <div className="p-4 border-t border-gray-200">
-              <div className="flex items-center space-x-2 mb-3">
-                <Bell className="w-4 h-4 text-gray-700" />
-                <h3 className="text-sm font-semibold text-gray-700">🔔 Notifiche</h3>
-              </div>
-              <div className="space-y-2">
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">🤝</span>
-                    <span className="text-yellow-800 text-sm">Nuova alleanza da Milano</span>
-                  </div>
-                </div>
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-lg">⚔️</span>
-                    <span className="text-red-800 text-sm">Napoli ha dichiarato guerra!</span>
-                  </div>
+                  <div className="font-bold text-lg">{currentPlayer?.resources?.pizza || 0}</div>
                 </div>
               </div>
             </div>
           </ScrollArea>
         </div>
 
-        {/* Mobile Menu Overlay - Migliorato */}
+        {/* Mobile Menu Overlay */}
         {mobileMenuOpen && (
           <div className="lg:hidden fixed inset-0 z-40 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)}>
             <div className="bg-white w-80 max-w-[90vw] h-full shadow-lg" onClick={(e) => e.stopPropagation()}>
@@ -239,22 +227,22 @@ const GameLayout = ({ children }: GameLayoutProps) => {
                     <div className="bg-white p-4 rounded-lg text-center shadow-sm">
                       <div className="text-2xl mb-1">🍞</div>
                       <div className="text-xs text-gray-600">Cibo</div>
-                      <div className="font-bold text-lg">{user?.resources?.cibo || 0}</div>
+                      <div className="font-bold text-lg">{currentPlayer?.resources?.cibo || 0}</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg text-center shadow-sm">
                       <div className="text-2xl mb-1">🏗️</div>
                       <div className="text-xs text-gray-600">Pietra</div>
-                      <div className="font-bold text-lg">{user?.resources?.pietra || 0}</div>
+                      <div className="font-bold text-lg">{currentPlayer?.resources?.pietra || 0}</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg text-center shadow-sm">
                       <div className="text-2xl mb-1">⚔️</div>
                       <div className="text-xs text-gray-600">Ferro</div>
-                      <div className="font-bold text-lg">{user?.resources?.ferro || 0}</div>
+                      <div className="font-bold text-lg">{currentPlayer?.resources?.ferro || 0}</div>
                     </div>
                     <div className="bg-white p-4 rounded-lg text-center shadow-sm">
                       <div className="text-2xl mb-1">🍕</div>
                       <div className="text-xs text-gray-600">Pizza</div>
-                      <div className="font-bold text-lg">{user?.resources?.pizza || 0}</div>
+                      <div className="font-bold text-lg">{currentPlayer?.resources?.pizza || 0}</div>
                     </div>
                   </div>
                 </div>
@@ -269,7 +257,7 @@ const GameLayout = ({ children }: GameLayoutProps) => {
         </div>
       </div>
 
-      {/* Bottom Navigation Mobile - Migliorato */}
+      {/* Bottom Navigation Mobile */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-inset-bottom shadow-lg">
         <div className="grid grid-cols-4 gap-1 p-2">
           {navItems.slice(0, 4).map((item) => (

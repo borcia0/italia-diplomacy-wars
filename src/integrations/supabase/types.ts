@@ -9,7 +9,261 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      alliances: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string | null
+          proposer_id: string
+          status: Database["public"]["Enums"]["alliance_status"] | null
+          target_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          proposer_id: string
+          status?: Database["public"]["Enums"]["alliance_status"] | null
+          target_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string | null
+          proposer_id?: string
+          status?: Database["public"]["Enums"]["alliance_status"] | null
+          target_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      army_units: {
+        Row: {
+          attack_power: number | null
+          created_at: string | null
+          defense_power: number | null
+          id: string
+          quantity: number | null
+          region: Database["public"]["Enums"]["region_name"]
+          type: Database["public"]["Enums"]["unit_type"]
+          user_id: string
+        }
+        Insert: {
+          attack_power?: number | null
+          created_at?: string | null
+          defense_power?: number | null
+          id?: string
+          quantity?: number | null
+          region: Database["public"]["Enums"]["region_name"]
+          type: Database["public"]["Enums"]["unit_type"]
+          user_id: string
+        }
+        Update: {
+          attack_power?: number | null
+          created_at?: string | null
+          defense_power?: number | null
+          id?: string
+          quantity?: number | null
+          region?: Database["public"]["Enums"]["region_name"]
+          type?: Database["public"]["Enums"]["unit_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      buildings: {
+        Row: {
+          created_at: string | null
+          id: string
+          level: number | null
+          production: number | null
+          region: Database["public"]["Enums"]["region_name"]
+          type: Database["public"]["Enums"]["building_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          level?: number | null
+          production?: number | null
+          region: Database["public"]["Enums"]["region_name"]
+          type: Database["public"]["Enums"]["building_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          level?: number | null
+          production?: number | null
+          region?: Database["public"]["Enums"]["region_name"]
+          type?: Database["public"]["Enums"]["building_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      market_offers: {
+        Row: {
+          created_at: string | null
+          currency: string
+          id: string
+          is_active: boolean | null
+          price: number
+          quantity: number
+          resource_type: string
+          seller_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          currency: string
+          id?: string
+          is_active?: boolean | null
+          price: number
+          quantity: number
+          resource_type: string
+          seller_id: string
+        }
+        Update: {
+          created_at?: string | null
+          currency?: string
+          id?: string
+          is_active?: boolean | null
+          price?: number
+          quantity?: number
+          resource_type?: string
+          seller_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string | null
+          current_region: Database["public"]["Enums"]["region_name"] | null
+          email: string
+          id: string
+          last_active: string | null
+          updated_at: string | null
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          current_region?: Database["public"]["Enums"]["region_name"] | null
+          email: string
+          id: string
+          last_active?: string | null
+          updated_at?: string | null
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          current_region?: Database["public"]["Enums"]["region_name"] | null
+          email?: string
+          id?: string
+          last_active?: string | null
+          updated_at?: string | null
+          username?: string
+        }
+        Relationships: []
+      }
+      regions: {
+        Row: {
+          capital: string
+          created_at: string | null
+          id: string
+          name: Database["public"]["Enums"]["region_name"]
+          owner_id: string | null
+          population: number | null
+        }
+        Insert: {
+          capital: string
+          created_at?: string | null
+          id?: string
+          name: Database["public"]["Enums"]["region_name"]
+          owner_id?: string | null
+          population?: number | null
+        }
+        Update: {
+          capital?: string
+          created_at?: string | null
+          id?: string
+          name?: Database["public"]["Enums"]["region_name"]
+          owner_id?: string | null
+          population?: number | null
+        }
+        Relationships: []
+      }
+      user_resources: {
+        Row: {
+          carbone: number | null
+          cibo: number | null
+          ferro: number | null
+          id: string
+          pietra: number | null
+          pizza: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          carbone?: number | null
+          cibo?: number | null
+          ferro?: number | null
+          id?: string
+          pietra?: number | null
+          pizza?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          carbone?: number | null
+          cibo?: number | null
+          ferro?: number | null
+          id?: string
+          pietra?: number | null
+          pizza?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wars: {
+        Row: {
+          attacker_id: string
+          attacker_troops: Json | null
+          defender_id: string
+          defender_troops: Json | null
+          id: string
+          resolved_at: string | null
+          result: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["war_status"] | null
+          target_region: Database["public"]["Enums"]["region_name"]
+        }
+        Insert: {
+          attacker_id: string
+          attacker_troops?: Json | null
+          defender_id: string
+          defender_troops?: Json | null
+          id?: string
+          resolved_at?: string | null
+          result?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["war_status"] | null
+          target_region: Database["public"]["Enums"]["region_name"]
+        }
+        Update: {
+          attacker_id?: string
+          attacker_troops?: Json | null
+          defender_id?: string
+          defender_troops?: Json | null
+          id?: string
+          resolved_at?: string | null
+          result?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["war_status"] | null
+          target_region?: Database["public"]["Enums"]["region_name"]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +272,31 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      alliance_status: "pending" | "accepted" | "rejected" | "active"
+      building_type: "fattoria" | "cava" | "miniera" | "pizzeria" | "caserma"
+      region_name:
+        | "lazio"
+        | "lombardia"
+        | "campania"
+        | "sicilia"
+        | "piemonte"
+        | "veneto"
+        | "emilia-romagna"
+        | "toscana"
+        | "puglia"
+        | "calabria"
+        | "sardegna"
+        | "liguria"
+        | "marche"
+        | "abruzzo"
+        | "umbria"
+        | "basilicata"
+        | "molise"
+        | "friuli"
+        | "trentino"
+        | "valle-daosta"
+      unit_type: "legionari" | "arcieri" | "cavalieri" | "catapulte"
+      war_status: "declared" | "active" | "resolved"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +411,33 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      alliance_status: ["pending", "accepted", "rejected", "active"],
+      building_type: ["fattoria", "cava", "miniera", "pizzeria", "caserma"],
+      region_name: [
+        "lazio",
+        "lombardia",
+        "campania",
+        "sicilia",
+        "piemonte",
+        "veneto",
+        "emilia-romagna",
+        "toscana",
+        "puglia",
+        "calabria",
+        "sardegna",
+        "liguria",
+        "marche",
+        "abruzzo",
+        "umbria",
+        "basilicata",
+        "molise",
+        "friuli",
+        "trentino",
+        "valle-daosta",
+      ],
+      unit_type: ["legionari", "arcieri", "cavalieri", "catapulte"],
+      war_status: ["declared", "active", "resolved"],
+    },
   },
 } as const

@@ -16,16 +16,16 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AuthProvider>
-        <GameProvider>
+      <SupabaseAuthProvider>
+        <SupabaseGameProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
-        </GameProvider>
-      </AuthProvider>
+        </SupabaseGameProvider>
+      </SupabaseAuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
