@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { useSupabaseGame } from '../hooks/useSupabaseGame';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { Shield, Swords, Crown, Users, Flag } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
+
+type RegionName = Database['public']['Enums']['region_name'];
 
 const RealGameMap = () => {
   const { regions, players, currentPlayer, declareWar, loading } = useSupabaseGame();
@@ -35,29 +38,29 @@ const RealGameMap = () => {
   };
 
   const italianRegions = [
-    { name: 'valle-daosta', displayName: 'Valle d\'Aosta', position: 'top-left' },
-    { name: 'piemonte', displayName: 'Piemonte', position: 'top-left' },
-    { name: 'lombardia', displayName: 'Lombardia', position: 'top-center' },
-    { name: 'trentino', displayName: 'Trentino', position: 'top-center' },
-    { name: 'veneto', displayName: 'Veneto', position: 'top-right' },
-    { name: 'friuli', displayName: 'Friuli', position: 'top-right' },
-    { name: 'liguria', displayName: 'Liguria', position: 'center-left' },
-    { name: 'emilia-romagna', displayName: 'Emilia-Romagna', position: 'center' },
-    { name: 'toscana', displayName: 'Toscana', position: 'center-left' },
-    { name: 'umbria', displayName: 'Umbria', position: 'center' },
-    { name: 'marche', displayName: 'Marche', position: 'center-right' },
-    { name: 'lazio', displayName: 'Lazio', position: 'center' },
-    { name: 'abruzzo', displayName: 'Abruzzo', position: 'center-right' },
-    { name: 'molise', displayName: 'Molise', position: 'center-right' },
-    { name: 'campania', displayName: 'Campania', position: 'bottom-left' },
-    { name: 'puglia', displayName: 'Puglia', position: 'bottom-right' },
-    { name: 'basilicata', displayName: 'Basilicata', position: 'bottom-center' },
-    { name: 'calabria', displayName: 'Calabria', position: 'bottom-center' },
-    { name: 'sicilia', displayName: 'Sicilia', position: 'bottom' },
-    { name: 'sardegna', displayName: 'Sardegna', position: 'bottom-left' },
+    { name: 'valle-daosta' as RegionName, displayName: 'Valle d\'Aosta', position: 'top-left' },
+    { name: 'piemonte' as RegionName, displayName: 'Piemonte', position: 'top-left' },
+    { name: 'lombardia' as RegionName, displayName: 'Lombardia', position: 'top-center' },
+    { name: 'trentino' as RegionName, displayName: 'Trentino', position: 'top-center' },
+    { name: 'veneto' as RegionName, displayName: 'Veneto', position: 'top-right' },
+    { name: 'friuli' as RegionName, displayName: 'Friuli', position: 'top-right' },
+    { name: 'liguria' as RegionName, displayName: 'Liguria', position: 'center-left' },
+    { name: 'emilia-romagna' as RegionName, displayName: 'Emilia-Romagna', position: 'center' },
+    { name: 'toscana' as RegionName, displayName: 'Toscana', position: 'center-left' },
+    { name: 'umbria' as RegionName, displayName: 'Umbria', position: 'center' },
+    { name: 'marche' as RegionName, displayName: 'Marche', position: 'center-right' },
+    { name: 'lazio' as RegionName, displayName: 'Lazio', position: 'center' },
+    { name: 'abruzzo' as RegionName, displayName: 'Abruzzo', position: 'center-right' },
+    { name: 'molise' as RegionName, displayName: 'Molise', position: 'center-right' },
+    { name: 'campania' as RegionName, displayName: 'Campania', position: 'bottom-left' },
+    { name: 'puglia' as RegionName, displayName: 'Puglia', position: 'bottom-right' },
+    { name: 'basilicata' as RegionName, displayName: 'Basilicata', position: 'bottom-center' },
+    { name: 'calabria' as RegionName, displayName: 'Calabria', position: 'bottom-center' },
+    { name: 'sicilia' as RegionName, displayName: 'Sicilia', position: 'bottom' },
+    { name: 'sardegna' as RegionName, displayName: 'Sardegna', position: 'bottom-left' },
   ];
 
-  const handleRegionClick = (regionName: string) => {
+  const handleRegionClick = (regionName: RegionName) => {
     const region = regions.find(r => r.name === regionName);
     const owner = getRegionOwner(regionName);
     setSelectedRegion({
@@ -68,7 +71,7 @@ const RealGameMap = () => {
     });
   };
 
-  const handleDeclareWar = async (targetRegion: string, defenderId: string) => {
+  const handleDeclareWar = async (targetRegion: RegionName, defenderId: string) => {
     await declareWar(defenderId, targetRegion);
     setSelectedRegion(null);
   };
@@ -226,7 +229,7 @@ const RealGameMap = () => {
                 ) : selectedRegion.status === 'enemy' && selectedRegion.owner ? (
                   <Button 
                     className="w-full bg-red-600 hover:bg-red-700"
-                    onClick={() => handleDeclareWar(selectedRegion.name, selectedRegion.owner.id)}
+                    onClick={() => handleDeclareWar(selectedRegion.name as RegionName, selectedRegion.owner.id)}
                   >
                     <Swords className="w-4 h-4 mr-2" />
                     Dichiara Guerra

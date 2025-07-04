@@ -3,6 +3,9 @@ import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from './useSupabaseAuth';
 import { useToast } from '@/hooks/use-toast';
+import { Database } from '@/integrations/supabase/types';
+
+type RegionName = Database['public']['Enums']['region_name'];
 
 export interface GamePlayer {
   id: string;
@@ -53,7 +56,7 @@ interface GameContextType {
   wars: War[];
   currentPlayer: GamePlayer | null;
   loading: boolean;
-  declareWar: (targetPlayerId: string, targetRegion: string) => Promise<void>;
+  declareWar: (targetPlayerId: string, targetRegion: RegionName) => Promise<void>;
   proposeAlliance: (targetPlayerId: string, message?: string) => Promise<void>;
   acceptAlliance: (allianceId: string) => Promise<void>;
   rejectAlliance: (allianceId: string) => Promise<void>;
@@ -140,7 +143,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
   }, [user]);
 
-  const declareWar = async (targetPlayerId: string, targetRegion: string) => {
+  const declareWar = async (targetPlayerId: string, targetRegion: RegionName) => {
     if (!user) return;
 
     try {
