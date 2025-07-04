@@ -26,16 +26,42 @@ export const SupabaseAuthProvider = ({ children }: { children: React.ReactNode }
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
+        console.log('Auth event:', event, session?.user?.id);
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
         
-        if (event === 'SIGNED_IN') {
-          toast({
-            title: "Accesso effettuato!",
-            description: "Benvenuto nel Regno d'Italia",
-          });
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Check if user profile exists, if not the trigger will create it
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+          
+          if (!profile) {
+            // Wait a moment for the trigger to create the profile
+            setTimeout(async () => {
+              const { data: newProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', session.user.id)
+                .single();
+              
+              if (newProfile) {
+                toast({
+                  title: "Benvenuto nel Regno d'Italia!",
+                  description: `Il tuo regno è stato creato in ${newProfile.current_region}`,
+                });
+              }
+            }, 1000);
+          } else {
+            toast({
+              title: "Bentornato, nobile sovrano!",
+              description: `Benvenuto nel tuo regno in ${profile.current_region}`,
+            });
+          }
         }
       }
     );
@@ -99,7 +125,7 @@ export const SupabaseAuthProvider = ({ children }: { children: React.ReactNode }
 
     toast({
       title: "Registrazione completata!",
-      description: "Il tuo regno è stato creato. Benvenuto!",
+      description: "Controlla la tua email per confermare l'account. Il tuo regno ti aspetta!",
     });
 
     return {};
