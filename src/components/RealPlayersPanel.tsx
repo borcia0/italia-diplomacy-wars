@@ -6,6 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { useSupabaseGame } from '../hooks/useSupabaseGame';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
 import { Users, Crown, Swords, Handshake, Shield } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
+
+type RegionName = Database['public']['Enums']['region_name'];
 
 const RealPlayersPanel = () => {
   const { players, alliances, wars, proposeAlliance, declareWar, loading } = useSupabaseGame();
@@ -141,7 +144,7 @@ const RealPlayersPanel = () => {
                         size="sm"
                         variant="destructive"
                         className="flex-1 text-xs lg:text-sm"
-                        onClick={() => declareWar(player.id, player.current_region)}
+                        onClick={() => declareWar(player.id, player.current_region as RegionName)}
                       >
                         <Swords className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
                         Guerra
