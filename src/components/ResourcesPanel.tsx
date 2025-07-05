@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Star, Plus, Gamepad, Users, Crown, AlertTriangle, Hammer, Zap } from 'lucide-react';
 import { useSupabaseGame } from '../hooks/useSupabaseGame';
+import { toast } from '@/hooks/use-toast';
 
 const ResourcesPanel = () => {
   const { currentPlayer, buildings, armyUnits, regions, buildStructure, trainUnits, upgradeBuilding, loading } = useSupabaseGame();
