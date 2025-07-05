@@ -14,7 +14,8 @@ const RealPlayersPanel = () => {
   const { players, regions, alliances, wars, armyUnits, buildings, proposeAlliance, declareWar, loading } = useSupabaseGame();
   const { user } = useSupabaseAuth();
 
-  const otherPlayers = players.filter(p => p.id !== user?.id);
+  // Only show authenticated real players, excluding current user
+  const otherPlayers = players.filter(p => p.id !== user?.id && p.email && p.username);
 
   const getPlayerTerritories = (playerId: string) => {
     return regions.filter(r => r.owner_id === playerId);
@@ -88,8 +89,8 @@ const RealPlayersPanel = () => {
       <div className="flex items-center space-x-2 mb-4 lg:mb-6">
         <Users className="w-5 h-5 lg:w-6 lg:h-6 text-blue-600" />
         <h2 className="text-xl lg:text-2xl font-bold">👥 Sovrani del Regno</h2>
-        <Badge variant="outline" className="bg-blue-50 text-blue-700 animate-pulse">
-          {players.length} Giocatori Attivi
+        <Badge variant="outline" className="bg-blue-50 text-blue-700">
+          {players.length} Giocatori Online
         </Badge>
       </div>
 
@@ -118,7 +119,7 @@ const RealPlayersPanel = () => {
                       </CardTitle>
                       <div className="text-xs lg:text-sm text-gray-600 flex items-center space-x-2">
                         <MapPin className="w-3 h-3" />
-                        <span>{player.current_region}</span>
+                        <span>{player.current_region || 'Nessuna regione'}</span>
                         <span className={`font-medium ${powerLevel.color}`}>• {powerLevel.level}</span>
                       </div>
                     </div>
@@ -140,7 +141,7 @@ const RealPlayersPanel = () => {
               
               <CardContent>
                 <div className="space-y-4">
-                  {/* Enhanced Stats */}
+                  {/* Stats */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-green-50 rounded-lg p-2 text-center">
                       <div className="flex items-center justify-center space-x-1">
@@ -177,7 +178,7 @@ const RealPlayersPanel = () => {
 
                   {/* Resources */}
                   <div>
-                    <h4 className="text-xs lg:text-sm font-semibold text-gray-700 mb-2">🏭 Risorse Stimate</h4>
+                    <h4 className="text-xs lg:text-sm font-semibold text-gray-700 mb-2">🏭 Risorse</h4>
                     <div className="grid grid-cols-5 gap-1 lg:gap-2 text-xs">
                       <div className="text-center bg-yellow-50 rounded p-1">
                         <span className="block text-base lg:text-lg">🍞</span>
@@ -202,7 +203,7 @@ const RealPlayersPanel = () => {
                     </div>
                   </div>
 
-                  {/* Territories List */}
+                  {/* Territories */}
                   {territories.length > 0 && (
                     <div>
                       <h4 className="text-xs lg:text-sm font-semibold text-gray-700 mb-2">🗺️ Territori Controllati</h4>
@@ -221,7 +222,7 @@ const RealPlayersPanel = () => {
                     </div>
                   )}
 
-                  {/* Enhanced Actions */}
+                  {/* Actions */}
                   <div className="flex flex-col lg:flex-row space-y-2 lg:space-y-0 lg:space-x-2 pt-3 border-t">
                     {!isAllied(player.id) && !isAtWar(player.id) && !hasPendingAlliance(player.id) && (
                       <>
@@ -277,7 +278,7 @@ const RealPlayersPanel = () => {
       {otherPlayers.length === 0 && (
         <div className="text-center py-8 lg:py-12">
           <Users className="w-12 h-12 lg:w-16 lg:h-16 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">👤 Sei l'unico sovrano del regno</h3>
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">👤 Nessun altro sovrano online</h3>
           <p className="text-gray-500 text-sm lg:text-base mb-4">
             Invita altri nobili a unirsi al tuo regno per espandere l'impero!
           </p>

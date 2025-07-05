@@ -108,10 +108,14 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
   const [loading, setLoading] = useState(true);
 
   const refreshData = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
-      // Fetch all data in parallel
+      console.log('Refreshing game data for user:', user.id);
+      
       const [playersData, regionsData, alliancesData, warsData, resourcesData, buildingsData, armyData] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('regions').select('*'),
@@ -121,6 +125,8 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         supabase.from('buildings').select('*'),
         supabase.from('army_units').select('*')
       ]);
+
+      console.log('Data fetched:', { playersData, regionsData, resourcesData });
 
       if (playersData.data) {
         const playersWithResources = playersData.data.map(player => {
@@ -140,7 +146,9 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         });
         
         setPlayers(playersWithResources);
-        setCurrentPlayer(playersWithResources.find(p => p.id === user.id) || null);
+        const current = playersWithResources.find(p => p.id === user.id);
+        console.log('Current player:', current);
+        setCurrentPlayer(current || null);
       }
 
       if (regionsData.data) setRegions(regionsData.data);
@@ -151,6 +159,11 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
 
     } catch (error) {
       console.error('Error fetching game data:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nel caricamento dei dati di gioco",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -160,7 +173,6 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     if (user) {
       refreshData();
       
-      // Set up real-time subscriptions
       const channel = supabase
         .channel('game-updates')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, refreshData)
@@ -275,48 +287,96 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
   };
 
-  const updateResources = async (resources: Partial<GamePlayer['resources']>) => {
+  const updateResources = async (newResources: Partial<GamePlayer['resources']>) => {
     if (!user) return;
 
     try {
-      const { error } = await supabase.from('user_resources')
-        .update(resources)
+      console.log('Updating resources:', newResources);
+      
+      const { error } = await supabase
+        .from('user_resources')
+        .update(newResources)
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Resource update error:', error);
+        throw error;
+      }
 
-      refreshData();
+      console.log('Resources updated successfully');
+      await refreshData();
     } catch (error) {
       console.error('Error updating resources:', error);
+      toast({
+        title: "Errore",
+        description: "Errore nell'aggiornamento delle risorse",
+        variant: "destructive",
+      });
     }
   };
 
   const conquestTerritory = async (regionName: RegionName) => {
-    if (!user || !currentPlayer) return;
+    if (!user || !currentPlayer) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato per conquistare territori",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
-      // Check if player has enough resources
-      if (currentPlayer.resources.ferro < 50 || currentPlayer.resources.cibo < 100) {
+      console.log('Attempting to conquer territory:', regionName);
+      
+      // Check if region is already owned
+      const region = regions.find(r => r.name === regionName);
+      if (region && region.owner_id && region.owner_id !== user.id) {
+        toast({
+          title: "Territorio Occupato",
+          description: "Questo territorio è già controllato da un altro giocatore",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check resources
+      const requiredCost = { ferro: 50, cibo: 100 };
+      if (currentPlayer.resources.ferro < requiredCost.ferro || currentPlayer.resources.cibo < requiredCost.cibo) {
         toast({
           title: "Risorse Insufficienti",
-          description: "Servono 50 Ferro e 100 Cibo per conquistare un territorio",
+          description: `Servono ${requiredCost.ferro} Ferro e ${requiredCost.cibo} Cibo per conquistare un territorio`,
           variant: "destructive",
         });
         return;
       }
 
       // Update region ownership
-      const { error: regionError } = await supabase.from('regions')
+      const { error: regionError } = await supabase
+        .from('regions')
         .update({ owner_id: user.id })
-        .eq('name', regionName)
-        .is('owner_id', null);
+        .eq('name', regionName);
 
-      if (regionError) throw regionError;
+      if (regionError) {
+        console.error('Region update error:', regionError);
+        throw regionError;
+      }
+
+      // Update user's current region if they don't have one
+      if (!currentPlayer.current_region || currentPlayer.current_region === 'lazio') {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ current_region: regionName })
+          .eq('id', user.id);
+
+        if (profileError) {
+          console.error('Profile update error:', profileError);
+        }
+      }
 
       // Deduct resources
       const newResources = {
-        ferro: currentPlayer.resources.ferro - 50,
-        cibo: currentPlayer.resources.cibo - 100
+        ferro: currentPlayer.resources.ferro - requiredCost.ferro,
+        cibo: currentPlayer.resources.cibo - requiredCost.cibo
       };
       
       await updateResources(newResources);
@@ -338,9 +398,18 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
   };
 
   const buildStructure = async (regionName: RegionName, buildingType: BuildingType) => {
-    if (!user || !currentPlayer) return;
+    if (!user || !currentPlayer) {
+      toast({
+        title: "Errore", 
+        description: "Devi essere autenticato per costruire",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('Building structure:', { regionName, buildingType });
+
       // Check if region belongs to player
       const region = regions.find(r => r.name === regionName);
       if (!region || region.owner_id !== user.id) {
@@ -352,8 +421,24 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Check resource requirements
-      const costs = {
+      // Check if building already exists
+      const existingBuilding = buildings.find(b => 
+        b.user_id === user.id && 
+        b.region === regionName && 
+        b.type === buildingType
+      );
+
+      if (existingBuilding) {
+        toast({
+          title: "Edificio Esistente",
+          description: `Hai già un ${buildingType} in ${regionName}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Define costs
+      const costs: Record<BuildingType, Record<string, number>> = {
         fattoria: { cibo: 20, pietra: 30 },
         cava: { pietra: 40, ferro: 20 },
         miniera: { ferro: 30, carbone: 25 },
@@ -362,17 +447,18 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       };
 
       const cost = costs[buildingType];
-      const hasResources = Object.entries(cost).every(([resource, amount]) => 
-        currentPlayer.resources[resource as keyof typeof currentPlayer.resources] >= amount
-      );
-
-      if (!hasResources) {
-        toast({
-          title: "Risorse Insufficienti",
-          description: "Non hai abbastanza risorse per costruire questo edificio",
-          variant: "destructive",
-        });
-        return;
+      
+      // Check resources
+      for (const [resource, amount] of Object.entries(cost)) {
+        const resourceKey = resource as keyof GamePlayer['resources'];
+        if (currentPlayer.resources[resourceKey] < amount) {
+          toast({
+            title: "Risorse Insufficienti",
+            description: `Non hai abbastanza ${resource} per costruire ${buildingType}`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       // Build structure
@@ -384,13 +470,17 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         production: 10
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Building creation error:', error);
+        throw error;
+      }
 
       // Deduct resources
-      const newResources = Object.entries(cost).reduce((acc, [resource, amount]) => ({
-        ...acc,
-        [resource]: currentPlayer.resources[resource as keyof typeof currentPlayer.resources] - amount
-      }), {});
+      const newResources: Partial<GamePlayer['resources']> = {};
+      for (const [resource, amount] of Object.entries(cost)) {
+        const resourceKey = resource as keyof GamePlayer['resources'];
+        newResources[resourceKey] = currentPlayer.resources[resourceKey] - amount;
+      }
 
       await updateResources(newResources);
 
@@ -411,9 +501,18 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
   };
 
   const trainUnits = async (regionName: RegionName, unitType: UnitType, quantity: number) => {
-    if (!user || !currentPlayer) return;
+    if (!user || !currentPlayer) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato per addestrare unità",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('Training units:', { regionName, unitType, quantity });
+
       // Check if region belongs to player
       const region = regions.find(r => r.name === regionName);
       if (!region || region.owner_id !== user.id) {
@@ -425,7 +524,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Check if player has barracks
+      // Check if player has barracks in this region
       const hasBarracks = buildings.some(b => 
         b.user_id === user.id && 
         b.region === regionName && 
@@ -434,14 +533,15 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
 
       if (!hasBarracks) {
         toast({
-          title: "Errore",
+          title: "Caserma Richiesta",
           description: "Serve una caserma per addestrare unità",
           variant: "destructive",
         });
         return;
       }
 
-      const unitCosts = {
+      // Define unit costs
+      const unitCosts: Record<UnitType, Record<string, number>> = {
         legionari: { cibo: 10, ferro: 5 },
         arcieri: { cibo: 8, ferro: 12 },
         cavalieri: { cibo: 20, ferro: 15 },
@@ -449,22 +549,24 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       };
 
       const cost = unitCosts[unitType];
-      const totalCost = Object.entries(cost).reduce((acc, [resource, amount]) => ({
-        ...acc,
-        [resource]: amount * quantity
-      }), {} as Record<string, number>);
+      
+      // Calculate total cost
+      const totalCost: Record<string, number> = {};
+      for (const [resource, amount] of Object.entries(cost)) {
+        totalCost[resource] = amount * quantity;
+      }
 
-      const hasResources = Object.entries(totalCost).every(([resource, amount]) => 
-        currentPlayer.resources[resource as keyof typeof currentPlayer.resources] >= amount
-      );
-
-      if (!hasResources) {
-        toast({
-          title: "Risorse Insufficienti",
-          description: "Non hai abbastanza risorse per addestrare queste unità",
-          variant: "destructive",
-        });
-        return;
+      // Check resources
+      for (const [resource, totalAmount] of Object.entries(totalCost)) {
+        const resourceKey = resource as keyof GamePlayer['resources'];
+        if (currentPlayer.resources[resourceKey] < totalAmount) {
+          toast({
+            title: "Risorse Insufficienti",
+            description: `Non hai abbastanza ${resource} per addestrare ${quantity} ${unitType}`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       // Check if units already exist
@@ -476,30 +578,41 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
 
       if (existingUnits) {
         // Update existing units
-        const { error } = await supabase.from('army_units')
+        const { error } = await supabase
+          .from('army_units')
           .update({ quantity: existingUnits.quantity + quantity })
           .eq('id', existingUnits.id);
 
         if (error) throw error;
       } else {
         // Create new units
+        const unitStats: Record<UnitType, { attack: number; defense: number }> = {
+          legionari: { attack: 10, defense: 12 },
+          arcieri: { attack: 12, defense: 8 },
+          cavalieri: { attack: 18, defense: 15 },
+          catapulte: { attack: 25, defense: 5 }
+        };
+
+        const stats = unitStats[unitType];
+        
         const { error } = await supabase.from('army_units').insert({
           user_id: user.id,
           region: regionName,
           type: unitType,
           quantity: quantity,
-          attack_power: unitType === 'catapulte' ? 25 : unitType === 'cavalieri' ? 18 : unitType === 'arcieri' ? 12 : 10,
-          defense_power: unitType === 'catapulte' ? 5 : unitType === 'cavalieri' ? 15 : unitType === 'arcieri' ? 8 : 12
+          attack_power: stats.attack,
+          defense_power: stats.defense
         });
 
         if (error) throw error;
       }
 
-      // Deduct resources  
-      const newResources = Object.entries(totalCost).reduce((acc, [resource, amount]) => ({
-        ...acc,
-        [resource]: currentPlayer.resources[resource as keyof typeof currentPlayer.resources] - amount
-      }), {});
+      // Deduct resources
+      const newResources: Partial<GamePlayer['resources']> = {};
+      for (const [resource, totalAmount] of Object.entries(totalCost)) {
+        const resourceKey = resource as keyof GamePlayer['resources'];
+        newResources[resourceKey] = currentPlayer.resources[resourceKey] - totalAmount;
+      }
 
       await updateResources(newResources);
 
@@ -543,7 +656,8 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      const { error } = await supabase.from('buildings')
+      const { error } = await supabase
+        .from('buildings')
         .update({ 
           level: building.level + 1,
           production: building.production + 5
