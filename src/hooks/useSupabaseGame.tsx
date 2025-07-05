@@ -89,6 +89,7 @@ interface GameContextType {
   trainUnits: (regionName: RegionName, unitType: UnitType, quantity: number) => Promise<void>;
   upgradeBuilding: (buildingId: string) => Promise<void>;
   refreshData: () => Promise<void>;
+  startResourceProduction: () => void;
 }
 
 const GameContext = createContext<GameContextType>({} as GameContextType);
@@ -121,15 +122,20 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         supabase.from('regions').select('*'),
         supabase.from('alliances').select('*'),
         supabase.from('wars').select('*'),
-        supabase.from('user_resources').select('*'),
-        supabase.from('buildings').select('*'),
-        supabase.from('army_units').select('*')
+        supabase.from('user_resources').select('*').eq('user_id', user.id),
+        supabase.from('buildings').select('*').eq('user_id', user.id),
+        supabase.from('army_units').select('*').eq('user_id', user.id)
       ]);
 
       console.log('Data fetched:', { playersData, regionsData, resourcesData });
 
+      // Filter only real players (no bots)
       if (playersData.data) {
-        const playersWithResources = playersData.data.map(player => {
+        const realPlayers = playersData.data.filter(player => 
+          player.email && player.email.includes('@') && !player.username.includes('Bot')
+        );
+        
+        const playersWithResources = realPlayers.map(player => {
           const playerResources = resourcesData.data?.find(r => r.user_id === player.id);
           return {
             ...player,
@@ -140,7 +146,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
               carbone: playerResources.carbone || 0,
               pizza: playerResources.pizza || 0,
             } : {
-              cibo: 0, pietra: 0, ferro: 0, carbone: 0, pizza: 0
+              cibo: 100, pietra: 50, ferro: 30, carbone: 20, pizza: 10
             }
           };
         });
@@ -152,7 +158,19 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       }
 
       if (regionsData.data) setRegions(regionsData.data);
-      if (alliancesData.data) setAlliances(alliancesData.data);
+      
+      // Filter only real alliances (no bot alliances)
+      if (alliancesData.data) {
+        const realAlliances = alliancesData.data.filter(alliance => {
+          const proposer = playersData.data?.find(p => p.id === alliance.proposer_id);
+          const target = playersData.data?.find(p => p.id === alliance.target_id);
+          return proposer && target && 
+                 proposer.email?.includes('@') && target.email?.includes('@') &&
+                 !proposer.username.includes('Bot') && !target.username.includes('Bot');
+        });
+        setAlliances(realAlliances);
+      }
+      
       if (warsData.data) setWars(warsData.data);
       if (buildingsData.data) setBuildings(buildingsData.data);
       if (armyData.data) setArmyUnits(armyData.data);
@@ -169,9 +187,61 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
   };
 
+  // Resource production system
+  const startResourceProduction = () => {
+    const interval = setInterval(async () => {
+      if (!user || !currentPlayer) return;
+
+      try {
+        // Calculate production from buildings
+        const userBuildings = buildings.filter(b => b.user_id === user.id);
+        let ciboProduction = 0;
+        let pietraProduction = 0;
+        let ferroProduction = 0;
+        let pizzaProduction = 0;
+
+        userBuildings.forEach(building => {
+          const baseProduction = building.level * 5; // 5 per level per hour
+          switch (building.type) {
+            case 'fattoria':
+              ciboProduction += baseProduction;
+              break;
+            case 'cava':
+              pietraProduction += baseProduction;
+              break;
+            case 'miniera':
+              ferroProduction += baseProduction;
+              break;
+            case 'pizzeria':
+              pizzaProduction += baseProduction;
+              break;
+          }
+        });
+
+        if (ciboProduction > 0 || pietraProduction > 0 || ferroProduction > 0 || pizzaProduction > 0) {
+          const newResources = {
+            cibo: currentPlayer.resources.cibo + ciboProduction,
+            pietra: currentPlayer.resources.pietra + pietraProduction,
+            ferro: currentPlayer.resources.ferro + ferroProduction,
+            pizza: currentPlayer.resources.pizza + pizzaProduction
+          };
+
+          await updateResources(newResources);
+          console.log('Resources produced:', { ciboProduction, pietraProduction, ferroProduction, pizzaProduction });
+        }
+      } catch (error) {
+        console.error('Error in resource production:', error);
+      }
+    }, 60000); // Every minute for testing (change to 3600000 for hourly)
+
+    return () => clearInterval(interval);
+  };
+
   useEffect(() => {
     if (user) {
       refreshData();
+      
+      const cleanup = startResourceProduction();
       
       const channel = supabase
         .channel('game-updates')
@@ -185,6 +255,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         .subscribe();
 
       return () => {
+        cleanup();
         supabase.removeChannel(channel);
       };
     }
@@ -339,7 +410,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Check resources
+      // Check resources - Fixed conquest cost
       const requiredCost = { ferro: 50, cibo: 100 };
       if (currentPlayer.resources.ferro < requiredCost.ferro || currentPlayer.resources.cibo < requiredCost.cibo) {
         toast({
@@ -359,18 +430,6 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       if (regionError) {
         console.error('Region update error:', regionError);
         throw regionError;
-      }
-
-      // Update user's current region if they don't have one
-      if (!currentPlayer.current_region || currentPlayer.current_region === 'lazio') {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({ current_region: regionName })
-          .eq('id', user.id);
-
-        if (profileError) {
-          console.error('Profile update error:', profileError);
-        }
       }
 
       // Deduct resources
@@ -421,23 +480,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Check if building already exists
-      const existingBuilding = buildings.find(b => 
-        b.user_id === user.id && 
-        b.region === regionName && 
-        b.type === buildingType
-      );
-
-      if (existingBuilding) {
-        toast({
-          title: "Edificio Esistente",
-          description: `Hai già un ${buildingType} in ${regionName}`,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Define costs
+      // Define costs - Fixed building costs
       const costs: Record<BuildingType, Record<string, number>> = {
         fattoria: { cibo: 20, pietra: 30 },
         cava: { pietra: 40, ferro: 20 },
@@ -467,7 +510,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         region: regionName,
         type: buildingType,
         level: 1,
-        production: 10
+        production: 5 // Base production per level
       });
 
       if (error) {
@@ -524,23 +567,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Check if player has barracks in this region
-      const hasBarracks = buildings.some(b => 
-        b.user_id === user.id && 
-        b.region === regionName && 
-        b.type === 'caserma'
-      );
-
-      if (!hasBarracks) {
-        toast({
-          title: "Caserma Richiesta",
-          description: "Serve una caserma per addestrare unità",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Define unit costs
+      // Define unit costs - Fixed unit costs
       const unitCosts: Record<UnitType, Record<string, number>> = {
         legionari: { cibo: 10, ferro: 5 },
         arcieri: { cibo: 8, ferro: 12 },
@@ -646,7 +673,8 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      const upgradeCost = building.level * 50;
+      // Fixed upgrade cost
+      const upgradeCost = building.level * 20; // 20 stone per level
       if (currentPlayer.resources.pietra < upgradeCost) {
         toast({
           title: "Risorse Insufficienti",
@@ -660,7 +688,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         .from('buildings')
         .update({ 
           level: building.level + 1,
-          production: building.production + 5
+          production: (building.level + 1) * 5 // 5 production per level
         })
         .eq('id', buildingId);
 
@@ -703,7 +731,8 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       buildStructure,
       trainUnits,
       upgradeBuilding,
-      refreshData
+      refreshData,
+      startResourceProduction
     }}>
       {children}
     </GameContext.Provider>
