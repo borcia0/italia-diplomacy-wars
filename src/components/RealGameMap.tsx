@@ -1,11 +1,10 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseGame } from '../hooks/useSupabaseGame';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
-import { Shield, Swords, Crown, Users, Flag, Hammer, Star, Plus, Minus } from 'lucide-react';
+import { Shield, Swords, Crown, Users, Flag, Hammer, Star, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type RegionName = Database['public']['Enums']['region_name'];
@@ -18,9 +17,9 @@ const RealGameMap = () => {
   const [selectedRegion, setSelectedRegion] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'info' | 'build' | 'army'>('info');
   const [unitQuantities, setUnitQuantities] = useState<Record<UnitType, number>>({
-    legionari: 10,
-    arcieri: 10,
-    cavalieri: 5,
+    legionari: 5,
+    arcieri: 3,
+    cavalieri: 2,
     catapulte: 1
   });
 
@@ -39,9 +38,9 @@ const RealGameMap = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'controlled': return 'bg-green-500 hover:bg-green-600 border-2 border-yellow-400 shadow-lg';
+      case 'controlled': return 'bg-green-500 hover:bg-green-600 border-4 border-yellow-400 shadow-lg animate-pulse';
       case 'enemy': return 'bg-red-500 hover:bg-red-600';
-      case 'neutral': return 'bg-gray-400 hover:bg-gray-500';
+      case 'neutral': return 'bg-gray-400 hover:bg-gray-500 border-2 border-dashed border-blue-300';
       default: return 'bg-gray-400 hover:bg-gray-500';
     }
   };
@@ -64,11 +63,11 @@ const RealGameMap = () => {
   const canAffordBuilding = (buildingType: BuildingType) => {
     if (!currentPlayer) return false;
     const costs = {
-      fattoria: { cibo: 20, pietra: 30 },
-      cava: { pietra: 40, ferro: 20 },
-      miniera: { ferro: 30, carbone: 25 },
-      pizzeria: { cibo: 50, pizza: 10 },
-      caserma: { ferro: 100, pietra: 80 }
+      fattoria: { cibo: 50, pietra: 100 },
+      cava: { pietra: 80, ferro: 60 },
+      miniera: { ferro: 100, carbone: 80 },
+      pizzeria: { cibo: 150, pizza: 30 },
+      caserma: { ferro: 200, pietra: 150 }
     };
     const cost = costs[buildingType];
     return Object.entries(cost).every(([resource, amount]) => 
@@ -79,10 +78,10 @@ const RealGameMap = () => {
   const canAffordUnits = (unitType: UnitType, quantity: number) => {
     if (!currentPlayer) return false;
     const unitCosts = {
-      legionari: { cibo: 10, ferro: 5 },
-      arcieri: { cibo: 8, ferro: 12 },
-      cavalieri: { cibo: 20, ferro: 15 },
-      catapulte: { ferro: 50, pietra: 30 }
+      legionari: { cibo: 20, ferro: 10 },
+      arcieri: { cibo: 15, ferro: 25 },
+      cavalieri: { cibo: 40, ferro: 30 },
+      catapulte: { ferro: 80, pietra: 60 }
     };
     const cost = unitCosts[unitType];
     return Object.entries(cost).every(([resource, amount]) => 
@@ -91,7 +90,7 @@ const RealGameMap = () => {
   };
 
   const canAffordConquest = () => {
-    return currentPlayer && currentPlayer.resources.ferro >= 50 && currentPlayer.resources.cibo >= 100;
+    return currentPlayer && currentPlayer.resources.ferro >= 100 && currentPlayer.resources.cibo >= 200;
   };
 
   const italianRegions = [
@@ -118,39 +117,48 @@ const RealGameMap = () => {
   ];
 
   const handleRegionClick = (regionName: RegionName) => {
+    console.log('🗺️ Region clicked:', regionName);
     const region = regions.find(r => r.name === regionName);
     const owner = getRegionOwner(regionName);
     const status = getRegionStatus(regionName);
     const power = getTotalArmyPower(regionName);
+    const regionBuildings = getRegionBuildings(regionName);
+    const regionArmy = getRegionArmyUnits(regionName);
     
     setSelectedRegion({
       ...region,
       owner,
       status,
       displayName: italianRegions.find(r => r.name === regionName)?.displayName || regionName,
-      armyPower: power
+      armyPower: power,
+      buildings: regionBuildings,
+      army: regionArmy
     });
     setActiveTab('info');
   };
 
   const handleDeclareWar = async (targetRegion: RegionName, defenderId: string) => {
+    console.log('⚔️ Declaring war:', { targetRegion, defenderId });
     await declareWar(defenderId, targetRegion);
     setSelectedRegion(null);
   };
 
   const handleConquestTerritory = async (regionName: RegionName) => {
+    console.log('🏴 Conquering territory:', regionName);
     await conquestTerritory(regionName);
     setSelectedRegion(null);
   };
 
   const handleBuildStructure = async (buildingType: BuildingType) => {
     if (selectedRegion) {
+      console.log('🏗️ Building structure:', { buildingType, region: selectedRegion.name });
       await buildStructure(selectedRegion.name as RegionName, buildingType);
     }
   };
 
   const handleTrainUnits = async (unitType: UnitType, quantity: number) => {
     if (selectedRegion) {
+      console.log('🛡️ Training units:', { unitType, quantity, region: selectedRegion.name });
       await trainUnits(selectedRegion.name as RegionName, unitType, quantity);
     }
   };
@@ -166,75 +174,97 @@ const RealGameMap = () => {
     return (
       <div className="flex items-center justify-center h-full bg-gradient-to-br from-green-100 to-red-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-green-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-lg font-semibold text-gray-700">Caricamento del Regno d'Italia...</p>
+          <div className="animate-spin rounded-full h-20 w-20 border-4 border-green-600 border-t-transparent mx-auto mb-6"></div>
+          <p className="text-2xl font-semibold text-gray-700">Caricamento del Regno d'Italia...</p>
+          <p className="text-gray-600 mt-2">Preparando la mappa per il tuo regno...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentPlayer) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gradient-to-br from-blue-100 to-red-100">
+        <div className="text-center">
+          <AlertTriangle className="w-20 h-20 text-yellow-600 mx-auto mb-6" />
+          <h3 className="text-2xl font-bold text-gray-800 mb-3">Accesso Richiesto</h3>
+          <p className="text-gray-600 text-lg">Effettua il login per accedere alla mappa del Regno d'Italia</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex bg-gradient-to-br from-green-50 via-white to-red-50">
       {/* Map Area */}
       <div className="flex-1 p-4 lg:p-6">
-        <div className="bg-gradient-to-br from-green-100 via-white to-red-100 rounded-lg shadow-lg h-full relative overflow-auto border-2 border-gray-200">
+        <div className="bg-gradient-to-br from-green-100 via-white to-red-100 rounded-xl shadow-2xl h-full relative overflow-auto border-4 border-gray-300">
           <div className="absolute inset-0 p-4 lg:p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl lg:text-2xl font-bold text-gray-800 flex items-center">
-                🏛️ Regno d'Italia - {new Date().getFullYear()}
-                <Crown className="w-6 h-6 ml-2 text-yellow-600" />
-              </h2>
-              <div className="flex items-center space-x-2 lg:space-x-4">
-                <Badge className="bg-blue-100 text-blue-800">
-                  <Users className="w-3 h-3 mr-1" />
+            {/* Enhanced Header */}
+            <div className="flex items-center justify-between mb-8 bg-white/90 backdrop-blur rounded-lg p-4 shadow-lg">
+              <div>
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 flex items-center">
+                  🇮🇹 Regno d'Italia - {new Date().getFullYear()}
+                  <Crown className="w-8 h-8 ml-3 text-yellow-600" />
+                </h2>
+                <p className="text-gray-600 mt-1">Conquista, costruisci, domina!</p>
+              </div>
+              <div className="flex items-center space-x-3 lg:space-x-4">
+                <Badge className="bg-blue-100 text-blue-800 text-lg px-3 py-2">
+                  <Users className="w-4 h-4 mr-2" />
                   {players.length} Sovrani
                 </Badge>
-                <Badge className="bg-green-100 text-green-800">
-                  <Crown className="w-3 h-3 mr-1" />
+                <Badge className="bg-green-100 text-green-800 text-lg px-3 py-2">
+                  <Crown className="w-4 h-4 mr-2" />
                   {currentPlayer?.username || 'Ospite'}
                 </Badge>
-                {currentPlayer && (
-                  <Badge className="bg-purple-100 text-purple-800">
-                    👑 {regions.filter(r => r.owner_id === user?.id).length} Territori
-                  </Badge>
-                )}
+                <Badge className="bg-purple-100 text-purple-800 text-lg px-3 py-2">
+                  🏰 {regions.filter(r => r.owner_id === user?.id).length} Territori
+                </Badge>
               </div>
             </div>
             
             {/* Italian Map Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3 h-5/6 max-w-6xl mx-auto">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 h-4/5 max-w-7xl mx-auto">
               {italianRegions.map(region => {
                 const status = getRegionStatus(region.name);
                 const owner = getRegionOwner(region.name);
                 const power = getTotalArmyPower(region.name);
+                const regionBuildings = getRegionBuildings(region.name);
                 
                 return (
                   <div
                     key={region.name}
-                    className={`${getStatusColor(status)} rounded-lg p-2 lg:p-4 cursor-pointer transition-all duration-200 transform hover:scale-105 text-white text-center min-h-[80px] lg:min-h-[100px] flex flex-col justify-center ${
-                      status === 'controlled' ? 'animate-pulse' : ''
-                    }`}
+                    className={`${getStatusColor(status)} rounded-xl p-3 lg:p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 text-white text-center min-h-[100px] lg:min-h-[120px] flex flex-col justify-center shadow-lg hover:shadow-xl`}
                     onClick={() => handleRegionClick(region.name)}
                   >
-                    <div className="mb-1 lg:mb-2 flex justify-center">
+                    <div className="mb-2 lg:mb-3 flex justify-center">
                       {status === 'controlled' ? (
-                        <Crown className="w-4 h-4 lg:w-6 lg:h-6 text-yellow-300" />
+                        <Crown className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-300" />
                       ) : status === 'enemy' ? (
-                        <Swords className="w-4 h-4 lg:w-6 lg:h-6" />
+                        <Swords className="w-6 h-6 lg:w-8 lg:h-8" />
                       ) : (
-                        <Shield className="w-4 h-4 lg:w-6 lg:h-6" />
+                        <Flag className="w-6 h-6 lg:w-8 lg:h-8" />
                       )}
                     </div>
-                    <h3 className="font-bold text-xs lg:text-sm">{region.displayName}</h3>
-                    {owner && (
-                      <p className="text-xs opacity-90 mt-1">{owner.username}</p>
+                    <h3 className="font-bold text-sm lg:text-base mb-1">{region.displayName}</h3>
+                    {owner ? (
+                      <p className="text-xs opacity-90">{owner.username}</p>
+                    ) : (
+                      <p className="text-xs opacity-90 text-yellow-200">🆓 Territorio Libero</p>
                     )}
-                    {!owner && (
-                      <p className="text-xs opacity-90 mt-1">🆓 Libera</p>
-                    )}
-                    {status === 'controlled' && (power.attack > 0 || power.defense > 0) && (
-                      <div className="text-xs mt-1 opacity-80">
-                        ⚔️{power.attack} 🛡️{power.defense}
+                    {status === 'controlled' && (
+                      <div className="text-xs mt-2 space-y-1">
+                        {regionBuildings.length > 0 && (
+                          <div className="bg-white/20 rounded px-2 py-1">
+                            🏗️ {regionBuildings.length} Edifici
+                          </div>
+                        )}
+                        {(power.attack > 0 || power.defense > 0) && (
+                          <div className="bg-white/20 rounded px-2 py-1">
+                            ⚔️{power.attack} 🛡️{power.defense}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -243,55 +273,58 @@ const RealGameMap = () => {
             </div>
 
             {/* Enhanced Legend */}
-            <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur rounded-lg p-3 shadow-lg">
-              <h4 className="font-semibold text-sm mb-2 flex items-center">
-                🗺️ Legenda
-                <Crown className="w-4 h-4 ml-2 text-yellow-600" />
+            <div className="absolute bottom-6 left-6 bg-white/95 backdrop-blur rounded-xl p-4 shadow-xl border-2 border-gray-200">
+              <h4 className="font-bold text-lg mb-3 flex items-center">
+                🗺️ Legenda del Regno
+                <Crown className="w-5 h-5 ml-2 text-yellow-600" />
               </h4>
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-green-500 rounded border-2 border-yellow-400"></div>
-                  <span>🏰 I Tuoi Territori</span>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-green-500 rounded border-2 border-yellow-400"></div>
+                  <span>🏰 I Tuoi Territori (con corona pulsante)</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-red-500 rounded"></div>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-red-500 rounded"></div>
                   <span>⚔️ Territori Nemici</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-3 h-3 bg-gray-400 rounded"></div>
-                  <span>🆓 Territori Liberi</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-4 h-4 bg-gray-400 rounded border-2 border-dashed border-blue-300"></div>
+                  <span>🆓 Territori Liberi da Conquistare</span>
                 </div>
               </div>
             </div>
 
-            {/* Resource Display */}
-            {currentPlayer && (
-              <div className="absolute bottom-4 right-4 bg-white/95 backdrop-blur rounded-lg p-3 shadow-lg">
-                <h4 className="font-semibold text-sm mb-2">💰 Tue Risorse</h4>
-                <div className="grid grid-cols-5 gap-2 text-xs">
-                  <div className="text-center">
-                    <span className="block text-base">🍞</span>
-                    <span className="font-medium">{currentPlayer.resources.cibo}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="block text-base">🏗️</span>
-                    <span className="font-medium">{currentPlayer.resources.pietra}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="block text-base">⚔️</span>
-                    <span className="font-medium">{currentPlayer.resources.ferro}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="block text-base">⚫</span>
-                    <span className="font-medium">{currentPlayer.resources.carbone}</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="block text-base">🍕</span>
-                    <span className="font-medium">{currentPlayer.resources.pizza}</span>
-                  </div>
+            {/* Enhanced Resource Display */}
+            <div className="absolute bottom-6 right-6 bg-white/95 backdrop-blur rounded-xl p-4 shadow-xl border-2 border-gray-200">
+              <h4 className="font-bold text-lg mb-3">💰 Le Tue Risorse</h4>
+              <div className="grid grid-cols-5 gap-3 text-sm">
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">🍞</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.cibo}</span>
+                  <span className="text-xs text-gray-600">Cibo</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">🏗️</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.pietra}</span>
+                  <span className="text-xs text-gray-600">Pietra</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">⚔️</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.ferro}</span>
+                  <span className="text-xs text-gray-600">Ferro</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">⚫</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.carbone}</span>
+                  <span className="text-xs text-gray-600">Carbone</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">🍕</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.pizza}</span>
+                  <span className="text-xs text-gray-600">Pizza</span>
                 </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
@@ -299,88 +332,94 @@ const RealGameMap = () => {
       {/* Enhanced Region Details Panel */}
       {selectedRegion && (
         <div className="w-full lg:w-96 p-4 lg:p-6">
-          <Card className="h-full shadow-xl border-2">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50">
+          <Card className="h-full shadow-2xl border-4 border-gray-300">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b-2">
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center space-x-2">
-                  <Shield className="w-5 h-5" />
+                <CardTitle className="flex items-center space-x-3 text-xl">
+                  <Shield className="w-6 h-6" />
                   <span>{selectedRegion.displayName}</span>
                 </CardTitle>
                 <div className="flex items-center space-x-2">
                   {selectedRegion.status === 'controlled' && (
-                    <Badge className="bg-green-100 text-green-800 animate-pulse">👑 Tua</Badge>
+                    <Badge className="bg-green-100 text-green-800 animate-pulse text-lg px-3 py-1">👑 Tua</Badge>
                   )}
                   {selectedRegion.status === 'enemy' && (
-                    <Badge className="bg-red-100 text-red-800">⚔️ Nemica</Badge>
+                    <Badge className="bg-red-100 text-red-800 text-lg px-3 py-1">⚔️ Nemica</Badge>
                   )}
                   {selectedRegion.status === 'neutral' && (
-                    <Badge className="bg-gray-100 text-gray-800">🆓 Libera</Badge>
+                    <Badge className="bg-gray-100 text-gray-800 text-lg px-3 py-1">🆓 Libera</Badge>
                   )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedRegion(null)}
+                    className="h-8 w-8 p-0"
+                  >
+                    ❌
+                  </Button>
                 </div>
               </div>
               
               {/* Enhanced Tabs */}
-              <div className="flex space-x-1 mt-4">
-                <Button
-                  variant={activeTab === 'info' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setActiveTab('info')}
-                  className="flex-1"
-                >
-                  📊 Info
-                </Button>
-                {selectedRegion.status === 'controlled' && (
-                  <>
-                    <Button
-                      variant={activeTab === 'build' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setActiveTab('build')}
-                      className="flex-1"
-                    >
-                      🏗️ Costruisci
-                    </Button>
-                    <Button
-                      variant={activeTab === 'army' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setActiveTab('army')}
-                      className="flex-1"
-                    >
-                      ⚔️ Esercito
-                    </Button>
-                  </>
-                )}
-              </div>
+              {selectedRegion.status === 'controlled' && (
+                <div className="flex space-x-2 mt-4">
+                  <Button
+                    variant={activeTab === 'info' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveTab('info')}
+                    className="flex-1"
+                  >
+                    📊 Info
+                  </Button>
+                  <Button
+                    variant={activeTab === 'build' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveTab('build')}
+                    className="flex-1"
+                  >
+                    🏗️ Costruisci
+                  </Button>
+                  <Button
+                    variant={activeTab === 'army' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setActiveTab('army')}
+                    className="flex-1"
+                  >
+                    ⚔️ Esercito
+                  </Button>
+                </div>
+              )}
             </CardHeader>
             
-            <CardContent className="space-y-4 max-h-96 overflow-y-auto">
+            <CardContent className="space-y-6 max-h-96 overflow-y-auto p-6">
               {activeTab === 'info' && (
                 <>
-                  <div className="bg-gray-50 rounded-lg p-3">
-                    <h4 className="font-semibold text-sm text-gray-700 mb-2">📍 Informazioni Territorio</h4>
-                    <div className="space-y-2 text-sm">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="font-bold text-lg text-gray-700 mb-3">📍 Informazioni Territorio</h4>
+                    <div className="space-y-3 text-sm">
                       <div className="flex justify-between">
-                        <span>Capitale:</span>
-                        <span className="font-medium">{selectedRegion.capital}</span>
+                        <span>🏛️ Capitale:</span>
+                        <span className="font-bold">{selectedRegion.capital}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Governatore:</span>
-                        <span className="font-medium">
+                        <span>👑 Governatore:</span>
+                        <span className="font-bold">
                           {selectedRegion.owner ? selectedRegion.owner.username : '🆓 Nessuno'}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span>Popolazione:</span>
-                        <span className="font-medium">{selectedRegion.population?.toLocaleString()}</span>
+                        <span>👥 Popolazione:</span>
+                        <span className="font-bold">{selectedRegion.population?.toLocaleString()}</span>
                       </div>
                       {selectedRegion.armyPower && (selectedRegion.armyPower.attack > 0 || selectedRegion.armyPower.defense > 0) && (
                         <>
                           <div className="flex justify-between">
-                            <span>Potere Offensivo:</span>
-                            <span className="font-medium text-red-600">⚔️ {selectedRegion.armyPower.attack}</span>
+                            <span>⚔️ Potere Offensivo:</span>
+                            <span className="font-bold text-red-600">{selectedRegion.armyPower.attack}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span>Potere Difensivo:</span>
-                            <span className="font-medium text-blue-600">🛡️ {selectedRegion.armyPower.defense}</span>
+                            <span>🛡️ Potere Difensivo:</span>
+                            <span className="font-bold text-blue-600">{selectedRegion.armyPower.defense}</span>
                           </div>
                         </>
                       )}
@@ -388,56 +427,69 @@ const RealGameMap = () => {
                   </div>
 
                   {selectedRegion.status === 'controlled' && (
-                    <div className="bg-green-50 rounded-lg p-3">
-                      <h4 className="font-semibold text-sm text-gray-700 mb-2">🏗️ Edifici Presenti</h4>
-                      <div className="space-y-2 text-sm">
-                        {getRegionBuildings(selectedRegion.name).map(building => (
-                          <div key={building.id} className="flex justify-between items-center bg-white rounded p-2">
-                            <span className="capitalize">{building.type} (Lv.{building.level})</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => upgradeBuilding(building.id)}
-                              disabled={!currentPlayer || currentPlayer.resources.pietra < building.level * 50}
-                            >
-                              <Star className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        ))}
-                        {getRegionBuildings(selectedRegion.name).length === 0 && (
-                          <p className="text-gray-500 italic">Nessun edificio costruito</p>
-                        )}
+                    <>
+                      <div className="bg-green-50 rounded-lg p-4">
+                        <h4 className="font-bold text-lg text-gray-700 mb-3">🏗️ Edifici Presenti</h4>
+                        <div className="space-y-2 text-sm">
+                          {selectedRegion.buildings.map((building: any) => (
+                            <div key={building.id} className="flex justify-between items-center bg-white rounded p-3">
+                              <div>
+                                <span className="capitalize font-medium">{building.type}</span>
+                                <span className="text-gray-600 ml-2">(Lv.{building.level})</span>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => upgradeBuilding(building.id)}
+                                disabled={!currentPlayer || currentPlayer.resources.pietra < building.level * 50}
+                              >
+                                <Star className="w-3 h-3 mr-1" />
+                                ⭐
+                              </Button>
+                            </div>
+                          ))}
+                          {selectedRegion.buildings.length === 0 && (
+                            <p className="text-gray-500 italic">Nessun edificio costruito</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+
+                      <div className="bg-red-50 rounded-lg p-4">
+                        <h4 className="font-bold text-lg text-gray-700 mb-3">🛡️ Unità Militari</h4>
+                        <div className="space-y-2 text-sm">
+                          {selectedRegion.army.map((unit: any) => (
+                            <div key={unit.id} className="flex justify-between bg-white rounded p-3">
+                              <span className="capitalize font-medium">{unit.type}</span>
+                              <span className="font-bold">{unit.quantity} unità</span>
+                            </div>
+                          ))}
+                          {selectedRegion.army.length === 0 && (
+                            <p className="text-gray-500 italic">Nessuna unità presente</p>
+                          )}
+                        </div>
+                      </div>
+                    </>
                   )}
 
-                  <div className="space-y-2 pt-4 border-t">
-                    <Button
-                      onClick={() => setSelectedRegion(null)}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      ❌ Chiudi
-                    </Button>
-                    
+                  <div className="space-y-3 pt-4 border-t-2">
                     {selectedRegion.status === 'neutral' && (
                       <Button 
-                        className={`w-full ${canAffordConquest() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                        className={`w-full text-lg h-14 ${canAffordConquest() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}
                         onClick={() => handleConquestTerritory(selectedRegion.name as RegionName)}
                         disabled={!canAffordConquest()}
                       >
-                        <Flag className="w-4 h-4 mr-2" />
-                        {canAffordConquest() ? 'Conquista (50 Ferro + 100 Cibo)' : 'Risorse Insufficienti'}
+                        <Flag className="w-5 h-5 mr-3" />
+                        {canAffordConquest() ? '🏴 Conquista (100 Ferro + 200 Cibo)' : '❌ Risorse Insufficienti'}
                       </Button>
                     )}
                     
                     {selectedRegion.status === 'enemy' && selectedRegion.owner && (
                       <Button 
-                        className="w-full bg-red-600 hover:bg-red-700"
+                        className="w-full bg-red-600 hover:bg-red-700 text-lg h-14"
                         onClick={() => handleDeclareWar(selectedRegion.name as RegionName, selectedRegion.owner.id)}
                       >
-                        <Swords className="w-4 h-4 mr-2" />
-                        Dichiara Guerra a {selectedRegion.owner.username}
+                        <Swords className="w-5 h-5 mr-3" />
+                        ⚔️ Dichiara Guerra a {selectedRegion.owner.username}
                       </Button>
                     )}
                   </div>
@@ -445,25 +497,25 @@ const RealGameMap = () => {
               )}
 
               {activeTab === 'build' && selectedRegion.status === 'controlled' && (
-                <div className="space-y-3">
-                  <h4 className="font-semibold text-sm text-gray-700">🏗️ Costruisci Nuovi Edifici</h4>
+                <div className="space-y-4">
+                  <h4 className="font-bold text-lg text-gray-700">🏗️ Costruisci Nuovi Edifici</h4>
                   {[
-                    { type: 'fattoria' as BuildingType, name: 'Fattoria', cost: '20 Cibo + 30 Pietra', emoji: '🌾', desc: 'Produce cibo' },
-                    { type: 'cava' as BuildingType, name: 'Cava', cost: '40 Pietra + 20 Ferro', emoji: '⛏️', desc: 'Produce pietra' },
-                    { type: 'miniera' as BuildingType, name: 'Miniera', cost: '30 Ferro + 25 Carbone', emoji: '⚒️', desc: 'Produce ferro' },
-                    { type: 'pizzeria' as BuildingType, name: 'Pizzeria', cost: '50 Cibo + 10 Pizza', emoji: '🍕', desc: 'Produce pizza' },
-                    { type: 'caserma' as BuildingType, name: 'Caserma', cost: '100 Ferro + 80 Pietra', emoji: '🏰', desc: 'Permette addestramento' }
+                    { type: 'fattoria' as BuildingType, name: 'Fattoria', cost: '50 Cibo + 100 Pietra', emoji: '🌾', desc: 'Produce cibo' },
+                    { type: 'cava' as BuildingType, name: 'Cava', cost: '80 Pietra + 60 Ferro', emoji: '⛏️', desc: 'Produce pietra' },
+                    { type: 'miniera' as BuildingType, name: 'Miniera', cost: '100 Ferro + 80 Carbone', emoji: '⚒️', desc: 'Produce ferro' },
+                    { type: 'pizzeria' as BuildingType, name: 'Pizzeria', cost: '150 Cibo + 30 Pizza', emoji: '🍕', desc: 'Produce pizza' },
+                    { type: 'caserma' as BuildingType, name: 'Caserma', cost: '200 Ferro + 150 Pietra', emoji: '🏰', desc: 'Permette addestramento' }
                   ].map(building => (
                     <Button
                       key={building.type}
                       variant="outline"
-                      className={`w-full justify-start p-3 h-auto ${canAffordBuilding(building.type) ? 'hover:bg-green-50' : 'opacity-50 cursor-not-allowed'}`}
+                      className={`w-full justify-start p-4 h-auto ${canAffordBuilding(building.type) ? 'hover:bg-green-50' : 'opacity-50 cursor-not-allowed'}`}
                       onClick={() => handleBuildStructure(building.type)}
                       disabled={!canAffordBuilding(building.type)}
                     >
-                      <span className="mr-3 text-xl">{building.emoji}</span>
+                      <span className="mr-4 text-2xl">{building.emoji}</span>
                       <div className="text-left flex-1">
-                        <div className="font-medium">{building.name}</div>
+                        <div className="font-bold">{building.name}</div>
                         <div className="text-xs text-gray-500">{building.desc}</div>
                         <div className="text-xs text-gray-600 mt-1">{building.cost}</div>
                       </div>
@@ -474,73 +526,56 @@ const RealGameMap = () => {
 
               {activeTab === 'army' && selectedRegion.status === 'controlled' && (
                 <div className="space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-700 mb-2">⚔️ Unità Attuali</h4>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      {getRegionArmyUnits(selectedRegion.name).map(unit => (
-                        <div key={unit.id} className="flex justify-between text-sm py-1">
-                          <span className="capitalize">{unit.type}</span>
-                          <span className="font-medium">{unit.quantity} unità</span>
-                        </div>
-                      ))}
-                      {getRegionArmyUnits(selectedRegion.name).length === 0 && (
-                        <p className="text-gray-500 text-sm italic">Nessuna unità presente</p>
-                      )}
-                    </div>
-                  </div>
+                  <h4 className="font-bold text-lg text-gray-700 mb-3">🛡️ Addestra Nuove Unità</h4>
+                  {[
+                    { type: 'legionari' as UnitType, name: 'Legionari', cost: '20 Cibo + 10 Ferro', emoji: '⚔️', stats: 'ATK:10 DEF:12' },
+                    { type: 'arcieri' as UnitType, name: 'Arcieri', cost: '15 Cibo + 25 Ferro', emoji: '🏹', stats: 'ATK:15 DEF:8' },
+                    { type: 'cavalieri' as UnitType, name: 'Cavalieri', cost: '40 Cibo + 30 Ferro', emoji: '🐎', stats: 'ATK:20 DEF:18' },
+                    { type: 'catapulte' as UnitType, name: 'Catapulte', cost: '80 Ferro + 60 Pietra', emoji: '🎯', stats: 'ATK:30 DEF:5' }
+                  ].map(unit => {
+                    const quantity = unitQuantities[unit.type] || 1;
+                    const canAfford = canAffordUnits(unit.type, quantity);
+                    const hasBarracks = selectedRegion.buildings?.some((b: any) => b.type === 'caserma');
 
-                  <div>
-                    <h4 className="font-semibold text-sm text-gray-700 mb-3">🛡️ Addestra Nuove Unità</h4>
-                    {[
-                      { type: 'legionari' as UnitType, name: 'Legionari', cost: '10 Cibo + 5 Ferro', emoji: '⚔️', stats: 'ATK:10 DEF:12' },
-                      { type: 'arcieri' as UnitType, name: 'Arcieri', cost: '8 Cibo + 12 Ferro', emoji: '🏹', stats: 'ATK:12 DEF:8' },
-                      { type: 'cavalieri' as UnitType, name: 'Cavalieri', cost: '20 Cibo + 15 Ferro', emoji: '🐎', stats: 'ATK:18 DEF:15' },
-                      { type: 'catapulte' as UnitType, name: 'Catapulte', cost: '50 Ferro + 30 Pietra', emoji: '🎯', stats: 'ATK:25 DEF:5' }
-                    ].map(unit => (
-                      <div key={unit.type} className="bg-white border rounded-lg p-3 mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center">
-                            <span className="mr-2 text-lg">{unit.emoji}</span>
-                            <div>
-                              <div className="font-medium text-sm">{unit.name}</div>
-                              <div className="text-xs text-gray-500">{unit.stats}</div>
-                            </div>
+                    return (
+                      <div key={unit.type} className="border rounded-lg p-4">
+                        <div className="flex items-center space-x-3 mb-3">
+                          <span className="text-2xl">{unit.emoji}</span>
+                          <div className="flex-1">
+                            <h5 className="font-bold">{unit.name}</h5>
+                            <p className="text-xs text-gray-600">{unit.stats}</p>
+                            <p className="text-xs text-blue-600 mt-1">{unit.cost}</p>
                           </div>
-                          <div className="text-xs text-gray-600">{unit.cost} (cad.)</div>
                         </div>
-                        
-                        <div className="flex items-center space-x-2">
-                          <Button
+                        <div className="flex items-center space-x-2 mb-3">
+                          <Button 
+                            variant="outline" 
                             size="sm"
-                            variant="outline"
                             onClick={() => updateUnitQuantity(unit.type, -1)}
-                            disabled={unitQuantities[unit.type] <= 1}
                           >
                             <Minus className="w-3 h-3" />
                           </Button>
-                          <span className="mx-3 min-w-[30px] text-center font-medium">
-                            {unitQuantities[unit.type]}
-                          </span>
-                          <Button
+                          <span className="font-bold text-lg px-3">{quantity}</span>
+                          <Button 
+                            variant="outline" 
                             size="sm"
-                            variant="outline"
                             onClick={() => updateUnitQuantity(unit.type, 1)}
                           >
                             <Plus className="w-3 h-3" />
                           </Button>
-                          <Button
-                            size="sm"
-                            className={`flex-1 ${canAffordUnits(unit.type, unitQuantities[unit.type]) ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}
-                            onClick={() => handleTrainUnits(unit.type, unitQuantities[unit.type])}
-                            disabled={!canAffordUnits(unit.type, unitQuantities[unit.type])}
-                          >
-                            <Hammer className="w-3 h-3 mr-1" />
-                            Addestra
-                          </Button>
                         </div>
+                        <Button
+                          variant="outline"
+                          className={`w-full ${canAfford && hasBarracks ? 'hover:bg-red-50' : 'cursor-not-allowed opacity-50'}`}
+                          onClick={() => handleTrainUnits(unit.type, quantity)}
+                          disabled={!canAfford || !hasBarracks}
+                        >
+                          <Hammer className="w-4 h-4 mr-2" />
+                          {hasBarracks ? 'Addestra' : 'Serve Caserma'}
+                        </Button>
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

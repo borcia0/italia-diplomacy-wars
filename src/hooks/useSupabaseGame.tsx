@@ -108,6 +108,110 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
   const [currentPlayer, setCurrentPlayer] = useState<GamePlayer | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Initialize new user with proper setup
+  const initializeNewUser = async (userId: string, email: string, username: string) => {
+    try {
+      console.log('🚀 Initializing new user:', { userId, email, username });
+
+      // 1. Create user resources with good starting amounts
+      const { error: resourceError } = await supabase
+        .from('user_resources')
+        .upsert({
+          user_id: userId,
+          cibo: 500,
+          pietra: 300,
+          ferro: 200,
+          carbone: 100,
+          pizza: 50
+        });
+
+      if (resourceError) throw resourceError;
+      console.log('✅ Resources created');
+
+      // 2. Assign a random free region
+      const { data: freeRegions } = await supabase
+        .from('regions')
+        .select('*')
+        .is('owner_id', null)
+        .limit(5);
+
+      if (freeRegions && freeRegions.length > 0) {
+        const randomRegion = freeRegions[Math.floor(Math.random() * freeRegions.length)];
+        
+        const { error: regionError } = await supabase
+          .from('regions')
+          .update({ owner_id: userId })
+          .eq('id', randomRegion.id);
+
+        if (regionError) throw regionError;
+        console.log('✅ Region assigned:', randomRegion.name);
+
+        // 3. Update profile with assigned region
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: userId,
+            username,
+            email,
+            current_region: randomRegion.name as RegionName
+          });
+
+        if (profileError) throw profileError;
+        console.log('✅ Profile updated');
+
+        // 4. Create starting buildings
+        const { error: buildingError } = await supabase
+          .from('buildings')
+          .insert([
+            {
+              user_id: userId,
+              region: randomRegion.name as RegionName,
+              type: 'fattoria' as BuildingType,
+              level: 1,
+              production: 20
+            },
+            {
+              user_id: userId,
+              region: randomRegion.name as RegionName,
+              type: 'caserma' as BuildingType,
+              level: 1,
+              production: 0
+            }
+          ]);
+
+        if (buildingError) throw buildingError;
+        console.log('✅ Starting buildings created');
+
+        // 5. Create starting army
+        const { error: armyError } = await supabase
+          .from('army_units')
+          .insert({
+            user_id: userId,
+            region: randomRegion.name as RegionName,
+            type: 'legionari' as UnitType,
+            quantity: 100,
+            attack_power: 10,
+            defense_power: 12
+          });
+
+        if (armyError) throw armyError;
+        console.log('✅ Starting army created');
+
+        toast({
+          title: "🎉 Benvenuto nel Regno d'Italia!",
+          description: `Il tuo regno è stato creato in ${randomRegion.capital}. Hai ricevuto risorse iniziali e un esercito!`,
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error initializing user:', error);
+      toast({
+        title: "Errore",
+        description: "Errore durante l'inizializzazione del giocatore",
+        variant: "destructive",
+      });
+    }
+  };
+
   const refreshData = async () => {
     if (!user) {
       setLoading(false);
@@ -115,24 +219,34 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
 
     try {
-      console.log('Refreshing game data for user:', user.id);
+      console.log('🔄 Refreshing game data for user:', user.id);
       
       const [playersData, regionsData, alliancesData, warsData, resourcesData, buildingsData, armyData] = await Promise.all([
         supabase.from('profiles').select('*'),
         supabase.from('regions').select('*'),
         supabase.from('alliances').select('*'),
         supabase.from('wars').select('*'),
-        supabase.from('user_resources').select('*').eq('user_id', user.id),
-        supabase.from('buildings').select('*').eq('user_id', user.id),
-        supabase.from('army_units').select('*').eq('user_id', user.id)
+        supabase.from('user_resources').select('*'),
+        supabase.from('buildings').select('*'),
+        supabase.from('army_units').select('*')
       ]);
 
-      console.log('Data fetched:', { playersData, regionsData, resourcesData });
+      console.log('📊 Data fetched:', { 
+        players: playersData.data?.length, 
+        resources: resourcesData.data?.length,
+        buildings: buildingsData.data?.length,
+        armyUnits: armyData.data?.length 
+      });
 
-      // Filter only real players (no bots)
+      // Filter ONLY real human players - NO BOTS
       if (playersData.data) {
         const realPlayers = playersData.data.filter(player => 
-          player.email && player.email.includes('@') && !player.username.includes('Bot')
+          player.email && 
+          player.email.includes('@') && 
+          !player.username.toLowerCase().includes('bot') &&
+          !player.username.toLowerCase().includes('ai') &&
+          !player.username.toLowerCase().includes('cpu') &&
+          player.email !== 'bot@example.com'
         );
         
         const playersWithResources = realPlayers.map(player => {
@@ -146,37 +260,44 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
               carbone: playerResources.carbone || 0,
               pizza: playerResources.pizza || 0,
             } : {
-              cibo: 100, pietra: 50, ferro: 30, carbone: 20, pizza: 10
+              cibo: 0, pietra: 0, ferro: 0, carbone: 0, pizza: 0
             }
           };
         });
         
         setPlayers(playersWithResources);
         const current = playersWithResources.find(p => p.id === user.id);
-        console.log('Current player:', current);
         setCurrentPlayer(current || null);
+
+        // Initialize new user if they don't exist
+        if (!current && user.email) {
+          await initializeNewUser(user.id, user.email, user.email.split('@')[0]);
+          // Refresh after initialization
+          setTimeout(() => refreshData(), 2000);
+        }
       }
 
       if (regionsData.data) setRegions(regionsData.data);
       
-      // Filter only real alliances (no bot alliances)
-      if (alliancesData.data) {
+      // Filter alliances to exclude bot alliances
+      if (alliancesData.data && playersData.data) {
         const realAlliances = alliancesData.data.filter(alliance => {
-          const proposer = playersData.data?.find(p => p.id === alliance.proposer_id);
-          const target = playersData.data?.find(p => p.id === alliance.target_id);
+          const proposer = playersData.data.find(p => p.id === alliance.proposer_id);
+          const target = playersData.data.find(p => p.id === alliance.target_id);
           return proposer && target && 
                  proposer.email?.includes('@') && target.email?.includes('@') &&
-                 !proposer.username.includes('Bot') && !target.username.includes('Bot');
+                 !proposer.username.toLowerCase().includes('bot') && 
+                 !target.username.toLowerCase().includes('bot');
         });
         setAlliances(realAlliances);
       }
       
       if (warsData.data) setWars(warsData.data);
-      if (buildingsData.data) setBuildings(buildingsData.data);
-      if (armyData.data) setArmyUnits(armyData.data);
+      if (buildingsData.data) setBuildings(buildingsData.data.filter(b => b.user_id));
+      if (armyData.data) setArmyUnits(armyData.data.filter(a => a.user_id));
 
     } catch (error) {
-      console.error('Error fetching game data:', error);
+      console.error('❌ Error fetching game data:', error);
       toast({
         title: "Errore",
         description: "Errore nel caricamento dei dati di gioco",
@@ -187,13 +308,12 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
   };
 
-  // Resource production system
+  // Resource production system - runs every minute for testing
   const startResourceProduction = () => {
     const interval = setInterval(async () => {
       if (!user || !currentPlayer) return;
 
       try {
-        // Calculate production from buildings
         const userBuildings = buildings.filter(b => b.user_id === user.id);
         let ciboProduction = 0;
         let pietraProduction = 0;
@@ -201,38 +321,38 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         let pizzaProduction = 0;
 
         userBuildings.forEach(building => {
-          const baseProduction = building.level * 5; // 5 per level per hour
+          const productionPerHour = building.level * 10; // 10 per level per hour
           switch (building.type) {
             case 'fattoria':
-              ciboProduction += baseProduction;
+              ciboProduction += productionPerHour;
               break;
             case 'cava':
-              pietraProduction += baseProduction;
+              pietraProduction += productionPerHour;
               break;
             case 'miniera':
-              ferroProduction += baseProduction;
+              ferroProduction += productionPerHour;
               break;
             case 'pizzeria':
-              pizzaProduction += baseProduction;
+              pizzaProduction += productionPerHour;
               break;
           }
         });
 
         if (ciboProduction > 0 || pietraProduction > 0 || ferroProduction > 0 || pizzaProduction > 0) {
           const newResources = {
-            cibo: currentPlayer.resources.cibo + ciboProduction,
-            pietra: currentPlayer.resources.pietra + pietraProduction,
-            ferro: currentPlayer.resources.ferro + ferroProduction,
-            pizza: currentPlayer.resources.pizza + pizzaProduction
+            cibo: Math.min(currentPlayer.resources.cibo + Math.floor(ciboProduction / 60), 10000), // Cap at 10k
+            pietra: Math.min(currentPlayer.resources.pietra + Math.floor(pietraProduction / 60), 10000),
+            ferro: Math.min(currentPlayer.resources.ferro + Math.floor(ferroProduction / 60), 10000),
+            pizza: Math.min(currentPlayer.resources.pizza + Math.floor(pizzaProduction / 60), 10000)
           };
 
           await updateResources(newResources);
-          console.log('Resources produced:', { ciboProduction, pietraProduction, ferroProduction, pizzaProduction });
+          console.log('🏭 Resources produced:', { ciboProduction: Math.floor(ciboProduction / 60), pietraProduction: Math.floor(pietraProduction / 60) });
         }
       } catch (error) {
-        console.error('Error in resource production:', error);
+        console.error('❌ Error in resource production:', error);
       }
-    }, 60000); // Every minute for testing (change to 3600000 for hourly)
+    }, 60000); // Every minute
 
     return () => clearInterval(interval);
   };
@@ -245,13 +365,26 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       
       const channel = supabase
         .channel('game-updates')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, refreshData)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'regions' }, refreshData)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'alliances' }, refreshData)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'wars' }, refreshData)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_resources' }, refreshData)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'buildings' }, refreshData)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'army_units' }, refreshData)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+          console.log('🔄 Profile change detected, refreshing...');
+          refreshData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'user_resources' }, () => {
+          console.log('🔄 Resource change detected, refreshing...');
+          refreshData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'regions' }, () => {
+          console.log('🔄 Region change detected, refreshing...');
+          refreshData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'buildings' }, () => {
+          console.log('🔄 Building change detected, refreshing...');
+          refreshData();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'army_units' }, () => {
+          console.log('🔄 Army change detected, refreshing...');
+          refreshData();
+        })
         .subscribe();
 
       return () => {
@@ -262,9 +395,18 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
   }, [user]);
 
   const declareWar = async (targetPlayerId: string, targetRegion: RegionName) => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato per dichiarare guerra",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('⚔️ Declaring war:', { targetPlayerId, targetRegion });
+      
       const { error } = await supabase.from('wars').insert({
         attacker_id: user.id,
         defender_id: targetPlayerId,
@@ -275,14 +417,14 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       if (error) throw error;
 
       toast({
-        title: "Guerra Dichiarata!",
+        title: "⚔️ Guerra Dichiarata!",
         description: `Hai dichiarato guerra per il controllo di ${targetRegion}`,
         variant: "destructive",
       });
 
-      refreshData();
+      await refreshData();
     } catch (error) {
-      console.error('Error declaring war:', error);
+      console.error('❌ Error declaring war:', error);
       toast({
         title: "Errore",
         description: "Non è stato possibile dichiarare guerra",
@@ -292,9 +434,18 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
   };
 
   const proposeAlliance = async (targetPlayerId: string, message?: string) => {
-    if (!user) return;
+    if (!user) {
+      toast({
+        title: "Errore",
+        description: "Devi essere autenticato per proporre alleanze",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
+      console.log('🤝 Proposing alliance:', { targetPlayerId, message });
+      
       const { error } = await supabase.from('alliances').insert({
         proposer_id: user.id,
         target_id: targetPlayerId,
@@ -305,13 +456,13 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       if (error) throw error;
 
       toast({
-        title: "Alleanza Proposta!",
+        title: "🤝 Alleanza Proposta!",
         description: "La tua proposta di alleanza è stata inviata",
       });
 
-      refreshData();
+      await refreshData();
     } catch (error) {
-      console.error('Error proposing alliance:', error);
+      console.error('❌ Error proposing alliance:', error);
       toast({
         title: "Errore",
         description: "Non è stato possibile proporre l'alleanza",
@@ -322,6 +473,8 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
 
   const acceptAlliance = async (allianceId: string) => {
     try {
+      console.log('✅ Accepting alliance:', allianceId);
+      
       const { error } = await supabase.from('alliances')
         .update({ status: 'active' })
         .eq('id', allianceId);
@@ -329,18 +482,25 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       if (error) throw error;
 
       toast({
-        title: "Alleanza Accettata!",
+        title: "🤝 Alleanza Accettata!",
         description: "Hai accettato l'alleanza",
       });
 
-      refreshData();
+      await refreshData();
     } catch (error) {
-      console.error('Error accepting alliance:', error);
+      console.error('❌ Error accepting alliance:', error);
+      toast({
+        title: "Errore",
+        description: "Non è stato possibile accettare l'alleanza",
+        variant: "destructive",
+      });
     }
   };
 
   const rejectAlliance = async (allianceId: string) => {
     try {
+      console.log('❌ Rejecting alliance:', allianceId);
+      
       const { error } = await supabase.from('alliances')
         .update({ status: 'rejected' })
         .eq('id', allianceId);
@@ -348,13 +508,13 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       if (error) throw error;
 
       toast({
-        title: "Alleanza Rifiutata",
+        title: "❌ Alleanza Rifiutata",
         description: "Hai rifiutato l'alleanza",
       });
 
-      refreshData();
+      await refreshData();
     } catch (error) {
-      console.error('Error rejecting alliance:', error);
+      console.error('❌ Error rejecting alliance:', error);
     }
   };
 
@@ -362,22 +522,19 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     if (!user) return;
 
     try {
-      console.log('Updating resources:', newResources);
+      console.log('💰 Updating resources:', newResources);
       
       const { error } = await supabase
         .from('user_resources')
         .update(newResources)
         .eq('user_id', user.id);
 
-      if (error) {
-        console.error('Resource update error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('Resources updated successfully');
+      console.log('✅ Resources updated successfully');
       await refreshData();
     } catch (error) {
-      console.error('Error updating resources:', error);
+      console.error('❌ Error updating resources:', error);
       toast({
         title: "Errore",
         description: "Errore nell'aggiornamento delle risorse",
@@ -397,11 +554,11 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
 
     try {
-      console.log('Attempting to conquer territory:', regionName);
+      console.log('🏴 Attempting to conquer territory:', regionName);
       
-      // Check if region is already owned
+      // Check if region is free
       const region = regions.find(r => r.name === regionName);
-      if (region && region.owner_id && region.owner_id !== user.id) {
+      if (region && region.owner_id) {
         toast({
           title: "Territorio Occupato",
           description: "Questo territorio è già controllato da un altro giocatore",
@@ -410,12 +567,12 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Check resources - Fixed conquest cost
-      const requiredCost = { ferro: 50, cibo: 100 };
-      if (currentPlayer.resources.ferro < requiredCost.ferro || currentPlayer.resources.cibo < requiredCost.cibo) {
+      // Fixed conquest cost
+      const conquestCost = { ferro: 100, cibo: 200 };
+      if (currentPlayer.resources.ferro < conquestCost.ferro || currentPlayer.resources.cibo < conquestCost.cibo) {
         toast({
           title: "Risorse Insufficienti",
-          description: `Servono ${requiredCost.ferro} Ferro e ${requiredCost.cibo} Cibo per conquistare un territorio`,
+          description: `Servono ${conquestCost.ferro} Ferro e ${conquestCost.cibo} Cibo per conquistare un territorio`,
           variant: "destructive",
         });
         return;
@@ -427,27 +584,23 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         .update({ owner_id: user.id })
         .eq('name', regionName);
 
-      if (regionError) {
-        console.error('Region update error:', regionError);
-        throw regionError;
-      }
+      if (regionError) throw regionError;
 
       // Deduct resources
       const newResources = {
-        ferro: currentPlayer.resources.ferro - requiredCost.ferro,
-        cibo: currentPlayer.resources.cibo - requiredCost.cibo
+        ferro: currentPlayer.resources.ferro - conquestCost.ferro,
+        cibo: currentPlayer.resources.cibo - conquestCost.cibo
       };
       
       await updateResources(newResources);
 
       toast({
-        title: "Territorio Conquistato!",
-        description: `Hai conquistato ${regionName}!`,
+        title: "🏴 Territorio Conquistato!",
+        description: `Hai conquistato ${regionName}! Costo: ${conquestCost.ferro} Ferro, ${conquestCost.cibo} Cibo`,
       });
 
-      refreshData();
     } catch (error) {
-      console.error('Error conquering territory:', error);
+      console.error('❌ Error conquering territory:', error);
       toast({
         title: "Errore",
         description: "Non è stato possibile conquistare il territorio",
@@ -467,7 +620,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
 
     try {
-      console.log('Building structure:', { regionName, buildingType });
+      console.log('🏗️ Building structure:', { regionName, buildingType });
 
       // Check if region belongs to player
       const region = regions.find(r => r.name === regionName);
@@ -480,13 +633,13 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Define costs - Fixed building costs
+      // Fixed building costs
       const costs: Record<BuildingType, Record<string, number>> = {
-        fattoria: { cibo: 20, pietra: 30 },
-        cava: { pietra: 40, ferro: 20 },
-        miniera: { ferro: 30, carbone: 25 },
-        pizzeria: { cibo: 50, pizza: 10 },
-        caserma: { ferro: 100, pietra: 80 }
+        fattoria: { cibo: 50, pietra: 100 },
+        cava: { pietra: 80, ferro: 60 },
+        miniera: { ferro: 100, carbone: 80 },
+        pizzeria: { cibo: 150, pizza: 30 },
+        caserma: { ferro: 200, pietra: 150 }
       };
 
       const cost = costs[buildingType];
@@ -497,7 +650,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         if (currentPlayer.resources[resourceKey] < amount) {
           toast({
             title: "Risorse Insufficienti",
-            description: `Non hai abbastanza ${resource} per costruire ${buildingType}`,
+            description: `Non hai abbastanza ${resource}: servono ${amount}, hai ${currentPlayer.resources[resourceKey]}`,
             variant: "destructive",
           });
           return;
@@ -510,13 +663,10 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         region: regionName,
         type: buildingType,
         level: 1,
-        production: 5 // Base production per level
+        production: 10
       });
 
-      if (error) {
-        console.error('Building creation error:', error);
-        throw error;
-      }
+      if (error) throw error;
 
       // Deduct resources
       const newResources: Partial<GamePlayer['resources']> = {};
@@ -528,13 +678,12 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       await updateResources(newResources);
 
       toast({
-        title: "Edificio Costruito!",
+        title: "🏗️ Edificio Costruito!",
         description: `Hai costruito ${buildingType} in ${regionName}`,
       });
 
-      refreshData();
     } catch (error) {
-      console.error('Error building structure:', error);
+      console.error('❌ Error building structure:', error);
       toast({
         title: "Errore",
         description: "Non è stato possibile costruire l'edificio",
@@ -554,7 +703,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     }
 
     try {
-      console.log('Training units:', { regionName, unitType, quantity });
+      console.log('🛡️ Training units:', { regionName, unitType, quantity });
 
       // Check if region belongs to player
       const region = regions.find(r => r.name === regionName);
@@ -567,12 +716,28 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
-      // Define unit costs - Fixed unit costs
+      // Check for barracks
+      const hasBarracks = buildings.some(b => 
+        b.user_id === user.id && 
+        b.region === regionName && 
+        b.type === 'caserma'
+      );
+
+      if (!hasBarracks) {
+        toast({
+          title: "Caserma Richiesta",
+          description: "Devi costruire una caserma per addestrare unità",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Fixed unit costs
       const unitCosts: Record<UnitType, Record<string, number>> = {
-        legionari: { cibo: 10, ferro: 5 },
-        arcieri: { cibo: 8, ferro: 12 },
-        cavalieri: { cibo: 20, ferro: 15 },
-        catapulte: { ferro: 50, pietra: 30 }
+        legionari: { cibo: 20, ferro: 10 },
+        arcieri: { cibo: 15, ferro: 25 },
+        cavalieri: { cibo: 40, ferro: 30 },
+        catapulte: { ferro: 80, pietra: 60 }
       };
 
       const cost = unitCosts[unitType];
@@ -589,7 +754,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         if (currentPlayer.resources[resourceKey] < totalAmount) {
           toast({
             title: "Risorse Insufficienti",
-            description: `Non hai abbastanza ${resource} per addestrare ${quantity} ${unitType}`,
+            description: `Non hai abbastanza ${resource}: servono ${totalAmount}, hai ${currentPlayer.resources[resourceKey]}`,
             variant: "destructive",
           });
           return;
@@ -615,9 +780,9 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         // Create new units
         const unitStats: Record<UnitType, { attack: number; defense: number }> = {
           legionari: { attack: 10, defense: 12 },
-          arcieri: { attack: 12, defense: 8 },
-          cavalieri: { attack: 18, defense: 15 },
-          catapulte: { attack: 25, defense: 5 }
+          arcieri: { attack: 15, defense: 8 },
+          cavalieri: { attack: 20, defense: 18 },
+          catapulte: { attack: 30, defense: 5 }
         };
 
         const stats = unitStats[unitType];
@@ -644,13 +809,12 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       await updateResources(newResources);
 
       toast({
-        title: "Unità Addestrate!",
+        title: "🛡️ Unità Addestrate!",
         description: `Hai addestrato ${quantity} ${unitType} in ${regionName}`,
       });
 
-      refreshData();
     } catch (error) {
-      console.error('Error training units:', error);
+      console.error('❌ Error training units:', error);
       toast({
         title: "Errore",
         description: "Non è stato possibile addestrare le unità",
@@ -663,6 +827,8 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     if (!user || !currentPlayer) return;
 
     try {
+      console.log('⭐ Upgrading building:', buildingId);
+      
       const building = buildings.find(b => b.id === buildingId);
       if (!building || building.user_id !== user.id) {
         toast({
@@ -674,7 +840,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       }
 
       // Fixed upgrade cost
-      const upgradeCost = building.level * 20; // 20 stone per level
+      const upgradeCost = building.level * 50; // 50 stone per level
       if (currentPlayer.resources.pietra < upgradeCost) {
         toast({
           title: "Risorse Insufficienti",
@@ -688,7 +854,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         .from('buildings')
         .update({ 
           level: building.level + 1,
-          production: (building.level + 1) * 5 // 5 production per level
+          production: (building.level + 1) * 10 // 10 production per level
         })
         .eq('id', buildingId);
 
@@ -697,13 +863,12 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
       await updateResources({ pietra: currentPlayer.resources.pietra - upgradeCost });
 
       toast({
-        title: "Edificio Migliorato!",
+        title: "⭐ Edificio Migliorato!",
         description: `Hai migliorato ${building.type} al livello ${building.level + 1}`,
       });
 
-      refreshData();
     } catch (error) {
-      console.error('Error upgrading building:', error);
+      console.error('❌ Error upgrading building:', error);
       toast({
         title: "Errore",
         description: "Non è stato possibile migliorare l'edificio",
