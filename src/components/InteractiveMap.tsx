@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useGameState } from '../hooks/useGameState';
 import { useAuth } from '../hooks/useAuth';
-import { Shield, Gamepad, Flag, Sword, Users, Zap, Crown, Star, X, Plus, Minus, RotateCcw } from 'lucide-react';
+import { Shield, Gamepad, Flag, Sword, Users, Zap, Crown, Star, X, Plus, Minus, RotateCcw, Coins } from 'lucide-react';
 
 interface Region {
   id: string;
@@ -32,7 +31,6 @@ const InteractiveMap = () => {
   const { gameState, attackRegion, proposeAlliance } = useGameState();
   const { user } = useAuth();
 
-  // Regioni italiane con forme più accurate
   const regions: Region[] = [
     { id: 'piemonte', name: 'Piemonte', capital: 'Torino', owner: 'GiocatoreZ', status: 'enemy', population: 4400000, resources: ['Ferro', 'Carbone'], x: 45, y: 45, size: 'medium', shape: 'M35,35 L55,32 L58,52 L45,58 L32,48 Z' },
     { id: 'lombardia', name: 'Lombardia', capital: 'Milano', owner: 'GiocatoreX', status: 'allied', population: 10000000, resources: ['Ferro', 'Industria'], x: 65, y: 40, size: 'large', shape: 'M55,32 L75,28 L82,48 L68,55 L55,45 Z' },
@@ -53,7 +51,6 @@ const InteractiveMap = () => {
     { id: 'sardegna', name: 'Sardegna', capital: 'Cagliari', owner: 'GiocatoreR', status: 'enemy', population: 1640000, resources: ['Minerali'], x: 35, y: 185, size: 'medium', shape: 'M25,175 L45,172 L48,205 L28,208 L22,188 Z' },
   ];
 
-  // Controlli touch ottimizzati
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       setIsDragging(true);
@@ -90,7 +87,6 @@ const InteractiveMap = () => {
     setMapPosition({ x: 0, y: 0 });
   };
 
-  // Animate regions when wars are declared
   useEffect(() => {
     if (gameState?.activeWars) {
       const newAnimated = new Set<string>();
@@ -107,7 +103,6 @@ const InteractiveMap = () => {
     }
   }, [gameState?.activeWars]);
 
-  // Update regions based on game state
   const updatedRegions = regions.map(region => {
     if (!gameState) return region;
     
@@ -179,7 +174,6 @@ const InteractiveMap = () => {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-br from-blue-50 via-green-50 to-red-50">
-      {/* Header compatto */}
       <div className="bg-white/95 backdrop-blur border-b border-gray-200 p-2 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div className="text-2xl">🇮🇹</div>
@@ -203,9 +197,7 @@ const InteractiveMap = () => {
         )}
       </div>
 
-      {/* Mappa Italia Interattiva */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Controlli Zoom - Più grandi per mobile */}
         <div className="absolute top-4 right-4 z-20 flex flex-col gap-2">
           <Button size="lg" onClick={handleZoomIn} className="bg-white/90 text-black hover:bg-white shadow-lg w-12 h-12 rounded-full">
             <Plus className="w-6 h-6" />
@@ -218,7 +210,6 @@ const InteractiveMap = () => {
           </Button>
         </div>
 
-        {/* Contenitore Mappa */}
         <div 
           className="absolute inset-0 touch-pan-x touch-pan-y"
           onTouchStart={handleTouchStart}
@@ -234,7 +225,6 @@ const InteractiveMap = () => {
             className="w-full h-full"
             style={{ minHeight: '100%' }}
           >
-            {/* Sfondo Mare Mediterraneo */}
             <defs>
               <radialGradient id="seaGradient" cx="50%" cy="50%" r="80%">
                 <stop offset="0%" stopColor="#e0f2fe" />
@@ -246,7 +236,6 @@ const InteractiveMap = () => {
             </defs>
             <rect width="100%" height="100%" fill="url(#seaGradient)" opacity="0.4" />
             
-            {/* Regioni Italia con forme accurate */}
             {updatedRegions.map(region => (
               <g key={region.id}>
                 <path
@@ -261,7 +250,6 @@ const InteractiveMap = () => {
                   onClick={() => setSelectedRegion(region)}
                 />
                 
-                {/* Icone Regioni */}
                 <g transform={`translate(${region.x - 4}, ${region.y - 4})`}>
                   <circle
                     cx="4"
@@ -287,7 +275,6 @@ const InteractiveMap = () => {
                   )}
                 </g>
                 
-                {/* Nome Regione se zoom abbastanza */}
                 {mapScale > 1.2 && (
                   <text
                     x={region.x}
@@ -303,7 +290,6 @@ const InteractiveMap = () => {
               </g>
             ))}
 
-            {/* Linee di Guerra Animate */}
             {gameState?.activeWars.map((war, index) => {
               const attackerRegion = updatedRegions.find(r => gameState.regionOwnership[r.id] === war.attackerId);
               const targetRegion = updatedRegions.find(r => r.id === war.targetRegion);
@@ -335,7 +321,6 @@ const InteractiveMap = () => {
           </svg>
         </div>
 
-        {/* Legenda Mobile */}
         <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur rounded-lg p-3 shadow-lg">
           <h4 className="font-semibold text-sm mb-2">🎯 Legenda</h4>
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -359,7 +344,6 @@ const InteractiveMap = () => {
         </div>
       </div>
 
-      {/* Panel Dettagli Regione - Ottimizzato Mobile */}
       {selectedRegion && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center">
           <Card className="w-full max-w-sm mx-4 mb-4 max-h-[80vh] bg-white shadow-2xl">
@@ -413,6 +397,28 @@ const InteractiveMap = () => {
                   </div>
                 </div>
 
+                {selectedRegion.status === 'neutral' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <h4 className="font-semibold text-amber-800 mb-2 flex items-center">
+                      <Coins className="w-4 h-4 mr-2" />
+                      💰 Costo Conquista
+                    </h4>
+                    <div className="space-y-1 text-sm text-amber-700">
+                      <div className="flex items-center justify-between">
+                        <span>🍖 Cibo necessario:</span>
+                        <span className="font-bold">200</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>⚔️ Ferro necessario:</span>
+                        <span className="font-bold">100</span>
+                      </div>
+                      <div className="text-xs text-amber-600 mt-2 italic">
+                        ⚠️ Assicurati di avere abbastanza risorse prima di conquistare!
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="space-y-3 pt-4 border-t">
                   {selectedRegion.status === 'controlled' ? (
                     <div className="space-y-2">
@@ -430,18 +436,19 @@ const InteractiveMap = () => {
                   ) : selectedRegion.status === 'neutral' ? (
                     <div className="space-y-2">
                       <Button 
-                        className="w-full text-sm h-12" 
+                        className="w-full text-sm h-12 bg-green-600 hover:bg-green-700 text-white" 
                         onClick={() => handleProposeAlliance(selectedRegion)}
                       >
-                        🤝 Proponi Alleanza
+                        <Flag className="w-4 h-4 mr-2" />
+                        🏴 Conquista Territorio
+                        <div className="text-xs opacity-80 ml-2">(200 🍖 + 100 ⚔️)</div>
                       </Button>
                       <Button 
                         className="w-full text-sm h-12" 
-                        variant="destructive"
-                        onClick={() => handleAttackRegion(selectedRegion)}
+                        variant="outline"
+                        onClick={() => handleProposeAlliance(selectedRegion)}
                       >
-                        <Flag className="w-4 h-4 mr-2" />
-                        ⚔️ Dichiara Guerra
+                        🤝 Proponi Alleanza
                       </Button>
                     </div>
                   ) : selectedRegion.status === 'enemy' ? (
