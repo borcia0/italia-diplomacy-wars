@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseGame } from '../hooks/useSupabaseGame';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
-import { Shield, Swords, Crown, Users, Flag, Hammer, Star, Plus, Minus, AlertTriangle } from 'lucide-react';
+import { Shield, Swords, Crown, Users, Flag, Hammer, Star, Plus, Minus, AlertTriangle, Info } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type RegionName = Database['public']['Enums']['region_name'];
@@ -235,9 +235,16 @@ const RealGameMap = () => {
                 return (
                   <div
                     key={region.name}
-                    className={`${getStatusColor(status)} rounded-xl p-3 lg:p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 text-white text-center min-h-[100px] lg:min-h-[120px] flex flex-col justify-center shadow-lg hover:shadow-xl`}
+                    className={`${getStatusColor(status)} rounded-xl p-3 lg:p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 text-white text-center min-h-[100px] lg:min-h-[120px] flex flex-col justify-center shadow-lg hover:shadow-xl relative`}
                     onClick={() => handleRegionClick(region.name)}
                   >
+                    {/* Conquest Cost Badge for Neutral Territories */}
+                    {status === 'neutral' && (
+                      <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs font-bold px-2 py-1 rounded-full shadow-lg">
+                        200🍞 + 100⚔️
+                      </div>
+                    )}
+                    
                     <div className="mb-2 lg:mb-3 flex justify-center">
                       {status === 'controlled' ? (
                         <Crown className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-300" />
@@ -289,18 +296,23 @@ const RealGameMap = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-gray-400 rounded border-2 border-dashed border-blue-300"></div>
-                  <span>🆓 Territori Liberi da Conquistare</span>
+                  <span>🆓 Territori Liberi (200🍞 + 100⚔️)</span>
                 </div>
               </div>
             </div>
 
-            {/* Enhanced Resource Display */}
-            <div className="absolute bottom-6 right-6 bg-white/95 backdrop-blur rounded-xl p-4 shadow-xl border-2 border-gray-200">
-              <h4 className="font-bold text-lg mb-3">💰 Le Tue Risorse</h4>
-              <div className="grid grid-cols-5 gap-3 text-sm">
+            {/* Enhanced Resource Display with Conquest Info */}
+            <div className="absolute bottom-6 right-6 bg-white/95 backdrop-blur rounded-xl p-4 shadow-xl border-2 border-gray-200 max-w-xs">
+              <h4 className="font-bold text-lg mb-3 flex items-center">
+                💰 Le Tue Risorse
+                <Info className="w-4 h-4 ml-2 text-blue-600" />
+              </h4>
+              <div className="grid grid-cols-5 gap-3 text-sm mb-4">
                 <div className="text-center">
                   <span className="block text-2xl mb-1">🍞</span>
-                  <span className="font-bold text-lg block">{currentPlayer.resources.cibo}</span>
+                  <span className={`font-bold text-lg block ${currentPlayer.resources.cibo >= 200 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentPlayer.resources.cibo}
+                  </span>
                   <span className="text-xs text-gray-600">Cibo</span>
                 </div>
                 <div className="text-center">
@@ -310,7 +322,9 @@ const RealGameMap = () => {
                 </div>
                 <div className="text-center">
                   <span className="block text-2xl mb-1">⚔️</span>
-                  <span className="font-bold text-lg block">{currentPlayer.resources.ferro}</span>
+                  <span className={`font-bold text-lg block ${currentPlayer.resources.ferro >= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                    {currentPlayer.resources.ferro}
+                  </span>
                   <span className="text-xs text-gray-600">Ferro</span>
                 </div>
                 <div className="text-center">
@@ -322,6 +336,38 @@ const RealGameMap = () => {
                   <span className="block text-2xl mb-1">🍕</span>
                   <span className="font-bold text-lg block">{currentPlayer.resources.pizza}</span>
                   <span className="text-xs text-gray-600">Pizza</span>
+                </div>
+              </div>
+              
+              {/* Conquest Cost Panel */}
+              <div className="border-t pt-3">
+                <h5 className="font-semibold text-sm mb-2 flex items-center">
+                  🏴 Costo Conquista Territori
+                </h5>
+                <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Cibo necessario:</span>
+                    <span className={`font-bold ${currentPlayer.resources.cibo >= 200 ? 'text-green-600' : 'text-red-600'}`}>
+                      200 🍞
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-1">
+                    <span>Ferro necessario:</span>
+                    <span className={`font-bold ${currentPlayer.resources.ferro >= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                      100 ⚔️
+                    </span>
+                  </div>
+                  <div className="mt-2 text-center">
+                    {canAffordConquest() ? (
+                      <Badge className="bg-green-100 text-green-800 text-base px-4 py-2">
+                        ✅ Hai abbastanza risorse!
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-red-100 text-red-800 text-base px-4 py-2">
+                        ❌ Risorse insufficienti
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -426,6 +472,40 @@ const RealGameMap = () => {
                     </div>
                   </div>
 
+                  {selectedRegion.status === 'neutral' && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                      <h4 className="font-bold text-amber-800 mb-3 flex items-center text-lg">
+                        💰 Costo per Conquistare
+                        <Info className="w-4 h-4 ml-2" />
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex items-center justify-between bg-white rounded p-2">
+                          <span>🍞 Cibo necessario:</span>
+                          <span className={`font-bold text-lg ${currentPlayer && currentPlayer.resources.cibo >= 200 ? 'text-green-600' : 'text-red-600'}`}>
+                            200
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white rounded p-2">
+                          <span>⚔️ Ferro necessario:</span>
+                          <span className={`font-bold text-lg ${currentPlayer && currentPlayer.resources.ferro >= 100 ? 'text-green-600' : 'text-red-600'}`}>
+                            100
+                          </span>
+                        </div>
+                        <div className="text-center mt-3">
+                          {canAffordConquest() ? (
+                            <Badge className="bg-green-100 text-green-800 text-base px-4 py-2">
+                              ✅ Hai abbastanza risorse!
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-red-100 text-red-800 text-base px-4 py-2">
+                              ❌ Risorse insufficienti
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {selectedRegion.status === 'controlled' && (
                     <>
                       <div className="bg-green-50 rounded-lg p-4">
@@ -474,12 +554,17 @@ const RealGameMap = () => {
                   <div className="space-y-3 pt-4 border-t-2">
                     {selectedRegion.status === 'neutral' && (
                       <Button 
-                        className={`w-full text-lg h-14 ${canAffordConquest() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}
+                        className={`w-full text-lg h-16 ${canAffordConquest() ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-400 cursor-not-allowed'}`}
                         onClick={() => handleConquestTerritory(selectedRegion.name as RegionName)}
                         disabled={!canAffordConquest()}
                       >
                         <Flag className="w-5 h-5 mr-3" />
-                        {canAffordConquest() ? '🏴 Conquista (100 Ferro + 200 Cibo)' : '❌ Risorse Insufficienti'}
+                        <div className="text-center">
+                          <div className="font-bold">🏴 Conquista Territorio</div>
+                          <div className="text-sm opacity-90">
+                            {canAffordConquest() ? 'Costo: 200 🍞 + 100 ⚔️' : 'Risorse Insufficienti'}
+                          </div>
+                        </div>
                       </Button>
                     )}
                     
