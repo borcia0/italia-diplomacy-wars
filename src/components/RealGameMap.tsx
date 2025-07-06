@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSupabaseGame } from '../hooks/useSupabaseGame';
 import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
-import { Shield, Swords, Crown, Users, Flag, Hammer, Star, Plus, Minus, AlertTriangle, Coins } from 'lucide-react';
+import { Shield, Swords, Crown, Users, Flag, Hammer, Star, Plus, Minus, AlertTriangle } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type RegionName = Database['public']['Enums']['region_name'];
@@ -195,105 +195,35 @@ const RealGameMap = () => {
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-br from-green-50 via-white to-red-50">
-      {/* Enhanced Top Resources Bar */}
-      <div className="bg-white/95 backdrop-blur border-b-2 border-gray-200 p-4 shadow-lg">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 flex items-center">
-              🇮🇹 Regno d'Italia - {new Date().getFullYear()}
-              <Crown className="w-8 h-8 ml-3 text-yellow-600" />
-            </h2>
-            <p className="text-gray-600 mt-1">Conquista, costruisci, domina!</p>
-          </div>
-          <div className="flex items-center space-x-3 lg:space-x-4">
-            <Badge className="bg-blue-100 text-blue-800 text-lg px-3 py-2">
-              <Users className="w-4 h-4 mr-2" />
-              {players.length} Sovrani
-            </Badge>
-            <Badge className="bg-green-100 text-green-800 text-lg px-3 py-2">
-              <Crown className="w-4 h-4 mr-2" />
-              {currentPlayer?.username || 'Ospite'}
-            </Badge>
-            <Badge className="bg-purple-100 text-purple-800 text-lg px-3 py-2">
-              🏰 {regions.filter(r => r.owner_id === user?.id).length} Territori
-            </Badge>
-          </div>
-        </div>
-
-        {/* RISORSE SEMPRE VISIBILI */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 bg-gradient-to-r from-yellow-50 to-green-50 rounded-xl p-4 border-2 border-yellow-300">
-          <div className="text-center bg-white rounded-lg p-3 shadow-md">
-            <span className="block text-3xl mb-2">🍞</span>
-            <span className="font-bold text-2xl block text-green-600">{currentPlayer.resources.cibo}</span>
-            <span className="text-sm text-gray-600">Cibo</span>
-          </div>
-          <div className="text-center bg-white rounded-lg p-3 shadow-md">
-            <span className="block text-3xl mb-2">🏗️</span>
-            <span className="font-bold text-2xl block text-gray-600">{currentPlayer.resources.pietra}</span>
-            <span className="text-sm text-gray-600">Pietra</span>
-          </div>
-          <div className="text-center bg-white rounded-lg p-3 shadow-md">
-            <span className="block text-3xl mb-2">⚔️</span>
-            <span className="font-bold text-2xl block text-red-600">{currentPlayer.resources.ferro}</span>
-            <span className="text-sm text-gray-600">Ferro</span>
-          </div>
-          <div className="text-center bg-white rounded-lg p-3 shadow-md">
-            <span className="block text-3xl mb-2">⚫</span>
-            <span className="font-bold text-2xl block text-gray-800">{currentPlayer.resources.carbone}</span>
-            <span className="text-sm text-gray-600">Carbone</span>
-          </div>
-          <div className="text-center bg-white rounded-lg p-3 shadow-md">
-            <span className="block text-3xl mb-2">🍕</span>
-            <span className="font-bold text-2xl block text-orange-600">{currentPlayer.resources.pizza}</span>
-            <span className="text-sm text-gray-600">Pizza</span>
-          </div>
-        </div>
-
-        {/* COSTO CONQUISTA SEMPRE VISIBILE */}
-        <div className="mt-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-4 border-2 border-blue-300">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Coins className="w-8 h-8 text-blue-600" />
-              <div>
-                <h3 className="text-xl font-bold text-gray-800">💰 Costo per Conquistare Territorio</h3>
-                <p className="text-gray-600">Clicca sui territori grigi per conquistarli</p>
-              </div>
-            </div>
-            <div className="flex items-center space-x-6 text-xl">
-              <div className="flex items-center space-x-2 bg-white rounded-lg px-4 py-2 shadow-md">
-                <span className="text-2xl">🍞</span>
-                <span className="font-bold text-green-600">200</span>
-                <span className="text-gray-600">Cibo</span>
-              </div>
-              <span className="text-2xl text-gray-400">+</span>
-              <div className="flex items-center space-x-2 bg-white rounded-lg px-4 py-2 shadow-md">
-                <span className="text-2xl">⚔️</span>
-                <span className="font-bold text-red-600">100</span>
-                <span className="text-gray-600">Ferro</span>
-              </div>
-            </div>
-          </div>
-          
-          {/* Indicatore se puoi permettertelo */}
-          <div className="mt-3 text-center">
-            {canAffordConquest() ? (
-              <Badge className="bg-green-100 text-green-800 text-lg px-4 py-2">
-                ✅ Hai abbastanza risorse per conquistare!
-              </Badge>
-            ) : (
-              <Badge className="bg-red-100 text-red-800 text-lg px-4 py-2">
-                ❌ Risorse insufficienti - Costruisci fattorie e miniere!
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-
+    <div className="h-full flex bg-gradient-to-br from-green-50 via-white to-red-50">
       {/* Map Area */}
       <div className="flex-1 p-4 lg:p-6">
         <div className="bg-gradient-to-br from-green-100 via-white to-red-100 rounded-xl shadow-2xl h-full relative overflow-auto border-4 border-gray-300">
           <div className="absolute inset-0 p-4 lg:p-8">
+            {/* Enhanced Header */}
+            <div className="flex items-center justify-between mb-8 bg-white/90 backdrop-blur rounded-lg p-4 shadow-lg">
+              <div>
+                <h2 className="text-2xl lg:text-3xl font-bold text-gray-800 flex items-center">
+                  🇮🇹 Regno d'Italia - {new Date().getFullYear()}
+                  <Crown className="w-8 h-8 ml-3 text-yellow-600" />
+                </h2>
+                <p className="text-gray-600 mt-1">Conquista, costruisci, domina!</p>
+              </div>
+              <div className="flex items-center space-x-3 lg:space-x-4">
+                <Badge className="bg-blue-100 text-blue-800 text-lg px-3 py-2">
+                  <Users className="w-4 h-4 mr-2" />
+                  {players.length} Sovrani
+                </Badge>
+                <Badge className="bg-green-100 text-green-800 text-lg px-3 py-2">
+                  <Crown className="w-4 h-4 mr-2" />
+                  {currentPlayer?.username || 'Ospite'}
+                </Badge>
+                <Badge className="bg-purple-100 text-purple-800 text-lg px-3 py-2">
+                  🏰 {regions.filter(r => r.owner_id === user?.id).length} Territori
+                </Badge>
+              </div>
+            </div>
+            
             {/* Italian Map Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 h-4/5 max-w-7xl mx-auto">
               {italianRegions.map(region => {
@@ -305,16 +235,9 @@ const RealGameMap = () => {
                 return (
                   <div
                     key={region.name}
-                    className={`${getStatusColor(status)} rounded-xl p-3 lg:p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 text-white text-center min-h-[100px] lg:min-h-[120px] flex flex-col justify-center shadow-lg hover:shadow-xl relative`}
+                    className={`${getStatusColor(status)} rounded-xl p-3 lg:p-6 cursor-pointer transition-all duration-300 transform hover:scale-105 text-white text-center min-h-[100px] lg:min-h-[120px] flex flex-col justify-center shadow-lg hover:shadow-xl`}
                     onClick={() => handleRegionClick(region.name)}
                   >
-                    {/* Costo conquista per territori neutrali */}
-                    {status === 'neutral' && (
-                      <div className="absolute -top-2 -right-2 bg-yellow-400 text-black rounded-full px-2 py-1 text-xs font-bold shadow-lg">
-                        💰 200🍞+100⚔️
-                      </div>
-                    )}
-                    
                     <div className="mb-2 lg:mb-3 flex justify-center">
                       {status === 'controlled' ? (
                         <Crown className="w-6 h-6 lg:w-8 lg:h-8 text-yellow-300" />
@@ -344,13 +267,6 @@ const RealGameMap = () => {
                         )}
                       </div>
                     )}
-                    
-                    {/* Indicatore conquista disponibile */}
-                    {status === 'neutral' && canAffordConquest() && (
-                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-green-400 text-black rounded-full px-3 py-1 text-xs font-bold shadow-lg animate-pulse">
-                        ✅ CONQUISTA!
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -365,7 +281,7 @@ const RealGameMap = () => {
               <div className="space-y-2 text-sm">
                 <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-green-500 rounded border-2 border-yellow-400"></div>
-                  <span>🏰 I Tuoi Territori</span>
+                  <span>🏰 I Tuoi Territori (con corona pulsante)</span>
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-red-500 rounded"></div>
@@ -373,7 +289,39 @@ const RealGameMap = () => {
                 </div>
                 <div className="flex items-center space-x-3">
                   <div className="w-4 h-4 bg-gray-400 rounded border-2 border-dashed border-blue-300"></div>
-                  <span>🆓 Territori Liberi (200🍞+100⚔️)</span>
+                  <span>🆓 Territori Liberi da Conquistare</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Enhanced Resource Display */}
+            <div className="absolute bottom-6 right-6 bg-white/95 backdrop-blur rounded-xl p-4 shadow-xl border-2 border-gray-200">
+              <h4 className="font-bold text-lg mb-3">💰 Le Tue Risorse</h4>
+              <div className="grid grid-cols-5 gap-3 text-sm">
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">🍞</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.cibo}</span>
+                  <span className="text-xs text-gray-600">Cibo</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">🏗️</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.pietra}</span>
+                  <span className="text-xs text-gray-600">Pietra</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">⚔️</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.ferro}</span>
+                  <span className="text-xs text-gray-600">Ferro</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">⚫</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.carbone}</span>
+                  <span className="text-xs text-gray-600">Carbone</span>
+                </div>
+                <div className="text-center">
+                  <span className="block text-2xl mb-1">🍕</span>
+                  <span className="font-bold text-lg block">{currentPlayer.resources.pizza}</span>
+                  <span className="text-xs text-gray-600">Pizza</span>
                 </div>
               </div>
             </div>
@@ -446,50 +394,6 @@ const RealGameMap = () => {
             <CardContent className="space-y-6 max-h-96 overflow-y-auto p-6">
               {activeTab === 'info' && (
                 <>
-                  {/* COSTO CONQUISTA PROMINENTE */}
-                  {selectedRegion.status === 'neutral' && (
-                    <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border-2 border-yellow-400 rounded-xl p-4 shadow-lg">
-                      <h4 className="font-bold text-xl text-orange-800 mb-3 flex items-center">
-                        <Coins className="w-6 h-6 mr-3" />
-                        💰 Costo Conquista
-                      </h4>
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between bg-white rounded-lg p-3 shadow-md">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl">🍞</span>
-                            <span className="font-medium">Cibo necessario:</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-2xl text-green-600">200</span>
-                            <span className="text-sm">({currentPlayer.resources.cibo} disponibili)</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center justify-between bg-white rounded-lg p-3 shadow-md">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-2xl">⚔️</span>
-                            <span className="font-medium">Ferro necessario:</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-bold text-2xl text-red-600">100</span>
-                            <span className="text-sm">({currentPlayer.resources.ferro} disponibili)</span>
-                          </div>
-                        </div>
-                        <div className="text-center mt-4">
-                          {canAffordConquest() ? (
-                            <div className="bg-green-100 text-green-800 rounded-lg p-3">
-                              <span className="text-lg font-bold">✅ Puoi conquistare questo territorio!</span>
-                            </div>
-                          ) : (
-                            <div className="bg-red-100 text-red-800 rounded-lg p-3">
-                              <span className="text-lg font-bold">❌ Risorse insufficienti</span>
-                              <p className="text-sm mt-1">Costruisci fattorie e miniere per ottenere più risorse</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="bg-gray-50 rounded-lg p-4">
                     <h4 className="font-bold text-lg text-gray-700 mb-3">📍 Informazioni Territorio</h4>
                     <div className="space-y-3 text-sm">
@@ -575,7 +479,7 @@ const RealGameMap = () => {
                         disabled={!canAffordConquest()}
                       >
                         <Flag className="w-5 h-5 mr-3" />
-                        {canAffordConquest() ? '🏴 CONQUISTA TERRITORIO' : '❌ Risorse Insufficienti'}
+                        {canAffordConquest() ? '🏴 Conquista (100 Ferro + 200 Cibo)' : '❌ Risorse Insufficienti'}
                       </Button>
                     )}
                     
