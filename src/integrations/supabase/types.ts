@@ -135,6 +135,45 @@ export type Database = {
         }
         Relationships: []
       }
+      minigame_stats: {
+        Row: {
+          created_at: string
+          dice_plays_today: number | null
+          id: string
+          last_dice_play: string | null
+          last_memory_play: string | null
+          last_slot_play: string | null
+          memory_plays_today: number | null
+          slot_plays_today: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dice_plays_today?: number | null
+          id?: string
+          last_dice_play?: string | null
+          last_memory_play?: string | null
+          last_slot_play?: string | null
+          memory_plays_today?: number | null
+          slot_plays_today?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dice_plays_today?: number | null
+          id?: string
+          last_dice_play?: string | null
+          last_memory_play?: string | null
+          last_slot_play?: string | null
+          memory_plays_today?: number | null
+          slot_plays_today?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string | null

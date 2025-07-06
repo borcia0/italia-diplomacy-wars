@@ -14,12 +14,27 @@ import { Dices, Target, Zap, Trophy, Coins, Pizza, Pickaxe, Wheat, Clock, Ban } 
 const DAILY_PLAY_LIMIT = 10; // Limite giornaliero di giocate per gioco
 const COOLDOWN_MINUTES = 5; // Cooldown tra una giocata e l'altra
 
+// Type for minigame stats since it's not in the generated types yet
+interface MinigameStats {
+  id: string;
+  user_id: string;
+  last_dice_play?: string;
+  last_memory_play?: string;
+  last_slot_play?: string;
+  dice_plays_today?: number;
+  memory_plays_today?: number;
+  slot_plays_today?: number;
+  created_at: string;
+  updated_at: string;
+  [key: string]: any; // For dynamic daily play columns
+}
+
 const MinigamesPanel = () => {
   const { user } = useSupabaseAuth();
   const { currentPlayer, refreshData } = useSupabaseGame();
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameResult, setGameResult] = useState<any>(null);
-  const [gameStats, setGameStats] = useState<any>({});
+  const [gameStats, setGameStats] = useState<MinigameStats | null>(null);
   const [cooldowns, setCooldowns] = useState<any>({});
 
   // Carica le statistiche di gioco dell'utente
@@ -33,7 +48,8 @@ const MinigamesPanel = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
+      // Use type assertion for the table query
+      const { data, error } = await (supabase as any)
         .from('minigame_stats')
         .select('*')
         .eq('user_id', user.id)
@@ -118,7 +134,7 @@ const MinigamesPanel = () => {
     // Controlla limite giornaliero
     const today = new Date().toDateString();
     const todayKey = `${gameType}_plays_${today.replace(/\s/g, '_')}`;
-    const todayPlays = gameStats[todayKey] || 0;
+    const todayPlays = gameStats?.[todayKey] || 0;
     
     if (todayPlays >= DAILY_PLAY_LIMIT) {
       return { canPlay: false, reason: `Limite giornaliero raggiunto (${DAILY_PLAY_LIMIT})` };
@@ -136,11 +152,11 @@ const MinigamesPanel = () => {
     
     const updateData: any = {
       [`last_${gameType}_play`]: now.toISOString(),
-      [todayKey]: (gameStats[todayKey] || 0) + 1
+      [todayKey]: (gameStats?.[todayKey] || 0) + 1
     };
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('minigame_stats')
         .upsert({
           user_id: user.id,
@@ -150,7 +166,7 @@ const MinigamesPanel = () => {
 
       if (error) throw error;
 
-      setGameStats(prev => ({ ...prev, ...updateData }));
+      setGameStats(prev => ({ ...prev, ...updateData } as MinigameStats));
       setCooldowns(prev => ({ ...prev, [gameType]: COOLDOWN_MINUTES }));
     } catch (error) {
       console.error('Errore nell\'aggiornamento delle statistiche:', error);
@@ -372,7 +388,7 @@ const MinigamesPanel = () => {
   const getPlayCountToday = (gameType: string) => {
     const today = new Date().toDateString();
     const todayKey = `${gameType}_plays_${today.replace(/\s/g, '_')}`;
-    return gameStats[todayKey] || 0;
+    return gameStats?.[todayKey] || 0;
   };
 
   return (
