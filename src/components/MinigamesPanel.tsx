@@ -13,7 +13,7 @@ import { Dices, Target, Zap, Trophy, Coins, Pizza, Pickaxe, Wheat } from 'lucide
 
 const MinigamesPanel = () => {
   const { user } = useSupabaseAuth();
-  const { currentPlayer, refreshGameData } = useSupabaseGame();
+  const { currentPlayer, refreshData } = useSupabaseGame();
   const [isPlaying, setIsPlaying] = useState(false);
   const [gameResult, setGameResult] = useState<any>(null);
 
@@ -71,7 +71,7 @@ const MinigamesPanel = () => {
       });
 
       toast.success(message);
-      await refreshGameData();
+      await refreshData();
     } catch (error) {
       console.error('Errore nel gioco dei dadi:', error);
       toast.error('Errore nel gioco');
@@ -128,7 +128,7 @@ const MinigamesPanel = () => {
       });
 
       toast.success(message);
-      await refreshGameData();
+      await refreshData();
     } catch (error) {
       console.error('Errore nel gioco della memoria:', error);
       toast.error('Errore nel gioco');
@@ -196,7 +196,7 @@ const MinigamesPanel = () => {
       });
 
       toast.success(message);
-      await refreshGameData();
+      await refreshData();
     } catch (error) {
       console.error('Errore nella slot machine:', error);
       toast.error('Errore nel gioco');
