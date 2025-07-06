@@ -11,6 +11,7 @@ import ResourcesPanel from './ResourcesPanel';
 import MarketPanel from './MarketPanel';
 import RealPlayersPanel from './RealPlayersPanel';
 import BattleSystem from './BattleSystem';
+import MinigamesPanel from './MinigamesPanel';
 
 interface GameLayoutProps {
   children: React.ReactNode;
@@ -19,7 +20,7 @@ interface GameLayoutProps {
 const GameLayout = ({ children }: GameLayoutProps) => {
   const { user, logout } = useSupabaseAuth();
   const { players, wars, currentPlayer, loading } = useSupabaseGame();
-  const [activePanel, setActivePanel] = useState<'map' | 'diplomacy' | 'resources' | 'market' | 'players' | 'battle'>('map');
+  const [activePanel, setActivePanel] = useState<'map' | 'diplomacy' | 'resources' | 'market' | 'players' | 'battle' | 'minigames'>('map');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const renderPanel = () => {
@@ -34,6 +35,8 @@ const GameLayout = ({ children }: GameLayoutProps) => {
         return <RealPlayersPanel />;
       case 'battle':
         return <BattleSystem />;
+      case 'minigames':
+        return <MinigamesPanel />;
       default:
         return children;
     }
@@ -51,6 +54,7 @@ const GameLayout = ({ children }: GameLayoutProps) => {
     { id: 'diplomacy', icon: Users, label: 'Diplomazia', count: null, emoji: '🤝' },
     { id: 'resources', icon: Star, label: 'Risorse', count: null, emoji: '🏭' },
     { id: 'market', icon: Key, label: 'Market', count: null, emoji: '💰' },
+    { id: 'minigames', icon: Star, label: 'Minigames', count: null, emoji: '🎮' },
   ];
 
   if (loading) {
@@ -260,7 +264,12 @@ const GameLayout = ({ children }: GameLayoutProps) => {
       {/* Bottom Navigation Mobile */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 safe-area-inset-bottom shadow-lg">
         <div className="grid grid-cols-4 gap-1 p-2">
-          {navItems.slice(0, 4).map((item) => (
+          {[
+            { id: 'map', emoji: '🗺️', label: 'Mappa' },
+            { id: 'minigames', emoji: '🎮', label: 'Games' },
+            { id: 'players', emoji: '👥', label: 'Players', count: onlinePlayersCount },
+            { id: 'battle', emoji: '⚔️', label: 'Battle', count: activeWarsCount }
+          ].map((item) => (
             <Button
               key={item.id}
               variant="ghost"
