@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useSupabaseGame } from '@/hooks/useSupabaseGame';
-import { Wheat, Pickaxe, Zap, Flame, Pizza, Crown, Users, Swords, Shield, MapPin } from 'lucide-react';
+import { Swords, Shield, MapPin, Crown, Users } from 'lucide-react';
 import { Database } from '@/integrations/supabase/types';
 
 type RegionName = Database['public']['Enums']['region_name'];
@@ -197,35 +197,6 @@ const RealGameMap = () => {
 
   return (
     <div className="h-full bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 relative">
-      {/* Pannello Risorse - Spostato in alto a sinistra */}
-      <div className="absolute top-4 left-4 z-20">
-        <Card className="p-4 bg-white/90 backdrop-blur-sm shadow-lg">
-          <h3 className="font-bold text-lg mb-3 text-center">🏛️ Tesoro Reale</h3>
-          {currentPlayer?.resources ? (
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center">
-                <Wheat className="w-4 h-4 mr-2 text-orange-600" />
-                <span className="font-medium">{currentPlayer.resources.cibo}</span>
-              </div>
-              <div className="flex items-center">
-                <Pickaxe className="w-4 h-4 mr-2 text-gray-600" />
-                <span className="font-medium">{currentPlayer.resources.pietra}</span>
-              </div>
-              <div className="flex items-center">
-                <Zap className="w-4 h-4 mr-2 text-red-600" />
-                <span className="font-medium">{currentPlayer.resources.ferro}</span>
-              </div>
-              <div className="flex items-center">
-                <Pizza className="w-4 h-4 mr-2 text-yellow-600" />
-                <span className="font-medium">{currentPlayer.resources.pizza}</span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center text-gray-500">Caricamento...</div>
-          )}
-        </Card>
-      </div>
-
       {/* Mappa d'Italia */}
       <div className="flex h-full">
         {/* Mappa */}

@@ -1,4 +1,3 @@
-
 import { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSupabaseAuth } from './useSupabaseAuth';
@@ -246,6 +245,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
           !player.username.toLowerCase().includes('bot') &&
           !player.username.toLowerCase().includes('ai') &&
           !player.username.toLowerCase().includes('cpu') &&
+          !player.username.toLowerCase().includes('giocatore') &&
           player.email !== 'bot@example.com'
         );
         
@@ -287,12 +287,28 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
           return proposer && target && 
                  proposer.email?.includes('@') && target.email?.includes('@') &&
                  !proposer.username.toLowerCase().includes('bot') && 
-                 !target.username.toLowerCase().includes('bot');
+                 !target.username.toLowerCase().includes('bot') &&
+                 !proposer.username.toLowerCase().includes('giocatore') &&
+                 !target.username.toLowerCase().includes('giocatore');
         });
         setAlliances(realAlliances);
       }
       
-      if (warsData.data) setWars(warsData.data);
+      // Filter wars to exclude bot wars
+      if (warsData.data && playersData.data) {
+        const realWars = warsData.data.filter(war => {
+          const attacker = playersData.data.find(p => p.id === war.attacker_id);
+          const defender = playersData.data.find(p => p.id === war.defender_id);
+          return attacker && defender && 
+                 attacker.email?.includes('@') && defender.email?.includes('@') &&
+                 !attacker.username.toLowerCase().includes('bot') && 
+                 !defender.username.toLowerCase().includes('bot') &&
+                 !attacker.username.toLowerCase().includes('giocatore') &&
+                 !defender.username.toLowerCase().includes('giocatore');
+        });
+        setWars(realWars);
+      }
+      
       if (buildingsData.data) setBuildings(buildingsData.data.filter(b => b.user_id));
       if (armyData.data) setArmyUnits(armyData.data.filter(a => a.user_id));
 
@@ -407,6 +423,16 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     try {
       console.log('⚔️ Declaring war:', { targetPlayerId, targetRegion });
       
+      // Check if user has enough resources for war
+      if (!currentPlayer || currentPlayer.resources.ferro < 50 || currentPlayer.resources.cibo < 100) {
+        toast({
+          title: "Risorse Insufficienti",
+          description: "Servono 50 Ferro e 100 Cibo per dichiarare guerra",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase.from('wars').insert({
         attacker_id: user.id,
         defender_id: targetPlayerId,
@@ -416,9 +442,15 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
 
       if (error) throw error;
 
+      // Deduct war costs
+      await updateResources({
+        ferro: currentPlayer.resources.ferro - 50,
+        cibo: currentPlayer.resources.cibo - 100
+      });
+
       toast({
         title: "⚔️ Guerra Dichiarata!",
-        description: `Hai dichiarato guerra per il controllo di ${targetRegion}`,
+        description: `Hai dichiarato guerra per il controllo di ${targetRegion}! Costo: 50 Ferro, 100 Cibo`,
         variant: "destructive",
       });
 
@@ -446,6 +478,21 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
     try {
       console.log('🤝 Proposing alliance:', { targetPlayerId, message });
       
+      // Check if alliance already exists
+      const existingAlliance = alliances.find(a => 
+        (a.proposer_id === user.id && a.target_id === targetPlayerId) ||
+        (a.proposer_id === targetPlayerId && a.target_id === user.id)
+      );
+
+      if (existingAlliance) {
+        toast({
+          title: "Alleanza Esistente",
+          description: "Esiste già una proposta di alleanza con questo giocatore",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase.from('alliances').insert({
         proposer_id: user.id,
         target_id: targetPlayerId,
@@ -586,6 +633,19 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
 
       if (regionError) throw regionError;
 
+      // Create initial buildings in the new territory
+      const { error: buildingError } = await supabase
+        .from('buildings')
+        .insert({
+          user_id: user.id,
+          region: regionName,
+          type: 'fattoria' as BuildingType,
+          level: 1,
+          production: 15
+        });
+
+      if (buildingError) console.error('Error creating initial building:', buildingError);
+
       // Deduct resources
       const newResources = {
         ferro: currentPlayer.resources.ferro - conquestCost.ferro,
@@ -599,6 +659,7 @@ export const SupabaseGameProvider = ({ children }: { children: React.ReactNode }
         description: `Hai conquistato ${regionName}! Costo: ${conquestCost.ferro} Ferro, ${conquestCost.cibo} Cibo`,
       });
 
+      await refreshData();
     } catch (error) {
       console.error('❌ Error conquering territory:', error);
       toast({

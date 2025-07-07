@@ -1,181 +1,122 @@
 
 import React, { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useSupabaseGame } from '../hooks/useSupabaseGame';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { useSupabaseGame } from '@/hooks/useSupabaseGame';
 import { supabase } from '@/integrations/supabase/client';
-import { useSupabaseAuth } from '../hooks/useSupabaseAuth';
-import { toast } from 'sonner';
-import { Dices, Target, Zap, Trophy, Coins, Pizza, Pickaxe, Wheat, Clock, Ban } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Brain, Gamepad2, Coins, Trophy, Target, Puzzle, Sparkles, Timer } from 'lucide-react';
 
-const DAILY_PLAY_LIMIT = 10; // Limite giornaliero di giocate per gioco
-const COOLDOWN_MINUTES = 5; // Cooldown tra una giocata e l'altra
-
-// Type for minigame stats since it's not in the generated types yet
 interface MinigameStats {
-  id: string;
-  user_id: string;
-  last_dice_play?: string;
-  last_memory_play?: string;
-  last_slot_play?: string;
-  dice_plays_today?: number;
-  memory_plays_today?: number;
-  slot_plays_today?: number;
-  created_at: string;
-  updated_at: string;
-  [key: string]: any; // For dynamic daily play columns
+  dice_plays_today: number;
+  memory_plays_today: number;
+  slot_plays_today: number;
+  puzzle_plays_today: number;
+  target_plays_today: number;
+  last_dice_play: string | null;
+  last_memory_play: string | null;
+  last_slot_play: string | null;
+  last_puzzle_play: string | null;
+  last_target_play: string | null;
 }
 
 const MinigamesPanel = () => {
   const { user } = useSupabaseAuth();
-  const { currentPlayer, refreshData } = useSupabaseGame();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [gameResult, setGameResult] = useState<any>(null);
-  const [gameStats, setGameStats] = useState<MinigameStats | null>(null);
-  const [cooldowns, setCooldowns] = useState<any>({});
+  const { updateResources, currentPlayer } = useSupabaseGame();
+  const { toast } = useToast();
+  
+  const [diceResult, setDiceResult] = useState<number | null>(null);
+  const [memoryCards, setMemoryCards] = useState<number[]>([]);
+  const [flippedCards, setFlippedCards] = useState<number[]>([]);
+  const [matchedCards, setMatchedCards] = useState<number[]>([]);
+  const [slotResult, setSlotResult] = useState<string[]>([]);
+  const [puzzleGrid, setPuzzleGrid] = useState<number[]>([]);
+  const [targetScore, setTargetScore] = useState(0);
+  const [currentScore, setCurrentScore] = useState(0);
+  const [gameStats, setGameStats] = useState<MinigameStats>({
+    dice_plays_today: 0,
+    memory_plays_today: 0,
+    slot_plays_today: 0,
+    puzzle_plays_today: 0,
+    target_plays_today: 0,
+    last_dice_play: null,
+    last_memory_play: null,
+    last_slot_play: null,
+    last_puzzle_play: null,
+    last_target_play: null,
+  });
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Carica le statistiche di gioco dell'utente
-  useEffect(() => {
-    if (user) {
-      loadGameStats();
-    }
-  }, [user]);
-
-  const loadGameStats = async () => {
-    if (!user) return;
+  // Fetch game statistics
+  const fetchGameStats = async () => {
+    if (!user?.id) return;
 
     try {
-      // Use type assertion for the table query
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('minigame_stats')
         .select('*')
         .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Errore nel caricamento stats:', error);
+        console.error('Error fetching game stats:', error);
         return;
       }
 
       if (data) {
-        setGameStats(data);
-        
-        // Controlla i cooldown
-        const now = new Date();
-        const newCooldowns: any = {};
-        
-        if (data.last_dice_play) {
-          const lastPlay = new Date(data.last_dice_play);
-          const timeDiff = now.getTime() - lastPlay.getTime();
-          const minutesDiff = Math.floor(timeDiff / (1000 * 60));
-          if (minutesDiff < COOLDOWN_MINUTES) {
-            newCooldowns.dice = COOLDOWN_MINUTES - minutesDiff;
-          }
-        }
-        
-        if (data.last_memory_play) {
-          const lastPlay = new Date(data.last_memory_play);
-          const timeDiff = now.getTime() - lastPlay.getTime();
-          const minutesDiff = Math.floor(timeDiff / (1000 * 60));
-          if (minutesDiff < COOLDOWN_MINUTES) {
-            newCooldowns.memory = COOLDOWN_MINUTES - minutesDiff;
-          }
-        }
-        
-        if (data.last_slot_play) {
-          const lastPlay = new Date(data.last_slot_play);
-          const timeDiff = now.getTime() - lastPlay.getTime();
-          const minutesDiff = Math.floor(timeDiff / (1000 * 60));
-          if (minutesDiff < COOLDOWN_MINUTES) {
-            newCooldowns.slot = COOLDOWN_MINUTES - minutesDiff;
-          }
-        }
-        
-        setCooldowns(newCooldowns);
+        setGameStats({
+          dice_plays_today: data.dice_plays_today || 0,
+          memory_plays_today: data.memory_plays_today || 0,
+          slot_plays_today: data.slot_plays_today || 0,
+          puzzle_plays_today: data.puzzle_plays_today || 0,
+          target_plays_today: data.target_plays_today || 0,
+          last_dice_play: data.last_dice_play,
+          last_memory_play: data.last_memory_play,
+          last_slot_play: data.last_slot_play,
+          last_puzzle_play: data.last_puzzle_play,
+          last_target_play: data.last_target_play,
+        });
       }
     } catch (error) {
-      console.error('Errore nel caricamento delle statistiche:', error);
+      console.error('Error fetching game stats:', error);
     }
   };
 
-  // Countdown per i cooldown
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCooldowns((prev: any) => {
-        const updated = { ...prev };
-        let hasChanges = false;
-        
-        Object.keys(updated).forEach(game => {
-          if (updated[game] > 0) {
-            updated[game]--;
-            hasChanges = true;
-            if (updated[game] === 0) {
-              delete updated[game];
-            }
-          }
-        });
-        
-        return hasChanges ? updated : prev;
-      });
-    }, 60000); // Aggiorna ogni minuto
-
+    fetchGameStats();
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchGameStats, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.id]);
 
-  const canPlayGame = async (gameType: string) => {
-    if (!user) return { canPlay: false, reason: 'Utente non autenticato' };
+  // Check if user can play a specific game
+  const checkCanPlay = async (gameType: string): Promise<boolean> => {
+    if (!user?.id) return false;
 
     try {
-      // Usa la funzione del database per verificare se può giocare
       const { data, error } = await supabase.rpc('can_play_minigame', {
         p_user_id: user.id,
         p_game_type: gameType
       });
 
       if (error) {
-        console.error('Errore nella verifica:', error);
-        return { canPlay: false, reason: 'Errore di sistema' };
+        console.error('Error checking play permission:', error);
+        return false;
       }
 
-      if (!data) {
-        // Se la funzione restituisce false, controlla il motivo
-        const stats = await supabase
-          .from('minigame_stats')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (stats.data) {
-          const todayPlays = stats.data[`${gameType}_plays_today`] || 0;
-          if (todayPlays >= DAILY_PLAY_LIMIT) {
-            return { canPlay: false, reason: `Limite giornaliero raggiunto (${DAILY_PLAY_LIMIT})` };
-          }
-
-          const lastPlay = stats.data[`last_${gameType}_play`];
-          if (lastPlay) {
-            const timeDiff = new Date().getTime() - new Date(lastPlay).getTime();
-            const minutesDiff = Math.floor(timeDiff / (1000 * 60));
-            if (minutesDiff < COOLDOWN_MINUTES) {
-              return { canPlay: false, reason: `Aspetta ${COOLDOWN_MINUTES - minutesDiff} minuti` };
-            }
-          }
-        }
-        
-        return { canPlay: false, reason: 'Non puoi giocare ora' };
-      }
-
-      return { canPlay: true };
+      return data === true;
     } catch (error) {
-      console.error('Errore nella verifica del gioco:', error);
-      return { canPlay: false, reason: 'Errore di sistema' };
+      console.error('Error checking play permission:', error);
+      return false;
     }
   };
 
+  // Update game statistics after playing
   const updateGameStats = async (gameType: string) => {
-    if (!user) return;
+    if (!user?.id) return;
 
     try {
       const { error } = await supabase.rpc('update_minigame_stats', {
@@ -183,505 +124,565 @@ const MinigamesPanel = () => {
         p_game_type: gameType
       });
 
-      if (error) throw error;
-
-      // Ricarica le statistiche
-      await loadGameStats();
-    } catch (error) {
-      console.error('Errore nell\'aggiornamento delle statistiche:', error);
-    }
-  };
-
-  // Dice Game - Lancia 3 dadi e vinci in base al risultato
-  const playDiceGame = async () => {
-    if (!user || isPlaying) return;
-    
-    const playCheck = await canPlayGame('dice');
-    if (!playCheck.canPlay) {
-      toast.error(playCheck.reason);
-      return;
-    }
-    
-    setIsPlaying(true);
-    setGameResult(null);
-
-    const dice1 = Math.floor(Math.random() * 6) + 1;
-    const dice2 = Math.floor(Math.random() * 6) + 1;
-    const dice3 = Math.floor(Math.random() * 6) + 1;
-    
-    const total = dice1 + dice2 + dice3;
-    
-    let reward = { cibo: 0, pietra: 0, ferro: 0, pizza: 0 };
-    let message = '';
-    
-    if (dice1 === dice2 && dice2 === dice3) {
-      // Tris! Grande premio
-      reward = { cibo: 50, pietra: 30, ferro: 20, pizza: 5 };
-      message = '🎰 TRIS! Premio MASSIMO!';
-    } else if (total >= 15) {
-      // Punteggio alto
-      reward = { cibo: 30, pietra: 15, ferro: 10, pizza: 2 };
-      message = '🎲 Ottimo lancio!';
-    } else if (total >= 10) {
-      // Punteggio medio
-      reward = { cibo: 20, pietra: 10, ferro: 5, pizza: 1 };
-      message = '🎯 Buon lancio!';
-    } else {
-      // Punteggio basso
-      reward = { cibo: 10, pietra: 5, ferro: 2, pizza: 0 };
-      message = '🍀 Meglio di niente!';
-    }
-
-    try {
-      await supabase
-        .from('user_resources')
-        .update({
-          cibo: (currentPlayer?.resources?.cibo || 0) + reward.cibo,
-          pietra: (currentPlayer?.resources?.pietra || 0) + reward.pietra,
-          ferro: (currentPlayer?.resources?.ferro || 0) + reward.ferro,
-          pizza: (currentPlayer?.resources?.pizza || 0) + reward.pizza,
-        })
-        .eq('user_id', user.id);
-
-      await updateGameStats('dice');
-
-      setGameResult({
-        type: 'dice',
-        dice: [dice1, dice2, dice3],
-        total,
-        reward,
-        message
-      });
-
-      toast.success(message);
-      await refreshData();
-    } catch (error) {
-      console.error('Errore nel gioco dei dadi:', error);
-      toast.error('Errore nel gioco');
-    }
-
-    setIsPlaying(false);
-  };
-
-  // Memory Game - Trova le coppie
-  const playMemoryGame = async () => {
-    if (!user || isPlaying) return;
-    
-    const playCheck = await canPlayGame('memory');
-    if (!playCheck.canPlay) {
-      toast.error(playCheck.reason);
-      return;
-    }
-    
-    setIsPlaying(true);
-    setGameResult(null);
-
-    // Simula un gioco della memoria con successo casuale
-    const success = Math.random() > 0.3; // 70% di successo
-    const timeBonus = Math.floor(Math.random() * 3) + 1; // 1-3 moltiplicatore
-    
-    let reward = { cibo: 0, pietra: 0, ferro: 0, pizza: 0 };
-    let message = '';
-    
-    if (success) {
-      const baseReward = 15 * timeBonus;
-      reward = { 
-        cibo: baseReward, 
-        pietra: Math.floor(baseReward * 0.6), 
-        ferro: Math.floor(baseReward * 0.4), 
-        pizza: timeBonus 
-      };
-      message = `🧠 Memoria perfetta! Bonus x${timeBonus}`;
-    } else {
-      reward = { cibo: 5, pietra: 2, ferro: 1, pizza: 0 };
-      message = '🤔 Quasi! Ritenta!';
-    }
-
-    try {
-      await supabase
-        .from('user_resources')
-        .update({
-          cibo: (currentPlayer?.resources?.cibo || 0) + reward.cibo,
-          pietra: (currentPlayer?.resources?.pietra || 0) + reward.pietra,
-          ferro: (currentPlayer?.resources?.ferro || 0) + reward.ferro,
-          pizza: (currentPlayer?.resources?.pizza || 0) + reward.pizza,
-        })
-        .eq('user_id', user.id);
-
-      await updateGameStats('memory');
-
-      setGameResult({
-        type: 'memory',
-        success,
-        timeBonus,
-        reward,
-        message
-      });
-
-      toast.success(message);
-      await refreshData();
-    } catch (error) {
-      console.error('Errore nel gioco della memoria:', error);
-      toast.error('Errore nel gioco');
-    }
-
-    setIsPlaying(false);
-  };
-
-  // Slot Machine - Classico gioco delle slot
-  const playSlotMachine = async () => {
-    if (!user || isPlaying) return;
-    
-    const playCheck = await canPlayGame('slot');
-    if (!playCheck.canPlay) {
-      toast.error(playCheck.reason);
-      return;
-    }
-    
-    setIsPlaying(true);
-    setGameResult(null);
-
-    const symbols = ['🍕', '🍞', '⚔️', '🏗️', '💎', '🏆'];
-    const reel1 = symbols[Math.floor(Math.random() * symbols.length)];
-    const reel2 = symbols[Math.floor(Math.random() * symbols.length)];
-    const reel3 = symbols[Math.floor(Math.random() * symbols.length)];
-    
-    let reward = { cibo: 0, pietra: 0, ferro: 0, pizza: 0 };
-    let message = '';
-    
-    if (reel1 === reel2 && reel2 === reel3) {
-      // Tris di simboli
-      if (reel1 === '🏆') {
-        reward = { cibo: 100, pietra: 60, ferro: 40, pizza: 10 };
-        message = '🏆 JACKPOT SUPREMO!!! 🏆';
-      } else if (reel1 === '💎') {
-        reward = { cibo: 60, pietra: 40, ferro: 25, pizza: 6 };
-        message = '💎 JACKPOT! 💎';
-      } else if (reel1 === '🍕') {
-        reward = { cibo: 0, pietra: 0, ferro: 0, pizza: 15 };
-        message = '🍕 PIZZA PARTY! 🍕';
+      if (error) {
+        console.error('Error updating game stats:', error);
       } else {
-        reward = { cibo: 40, pietra: 20, ferro: 15, pizza: 3 };
-        message = '✨ TRIS! ✨';
+        await fetchGameStats();
       }
-    } else if (reel1 === reel2 || reel2 === reel3 || reel1 === reel3) {
-      // Coppia
-      reward = { cibo: 20, pietra: 12, ferro: 8, pizza: 1 };
-      message = '🎯 Coppia!';
-    } else {
-      // Nessuna vincita
-      reward = { cibo: 5, pietra: 2, ferro: 1, pizza: 0 };
-      message = '🎰 Riprova!';
-    }
-
-    try {
-      await supabase
-        .from('user_resources')
-        .update({
-          cibo: (currentPlayer?.resources?.cibo || 0) + reward.cibo,
-          pietra: (currentPlayer?.resources?.pietra || 0) + reward.pietra,
-          ferro: (currentPlayer?.resources?.ferro || 0) + reward.ferro,
-          pizza: (currentPlayer?.resources?.pizza || 0) + reward.pizza,
-        })
-        .eq('user_id', user.id);
-
-      await updateGameStats('slot');
-
-      setGameResult({
-        type: 'slot',
-        reels: [reel1, reel2, reel3],
-        reward,
-        message
-      });
-
-      toast.success(message);
-      await refreshData();
     } catch (error) {
-      console.error('Errore nella slot machine:', error);
-      toast.error('Errore nel gioco');
+      console.error('Error updating game stats:', error);
+    }
+  };
+
+  // Get remaining cooldown time
+  const getCooldownTime = (lastPlay: string | null): number => {
+    if (!lastPlay) return 0;
+    const lastPlayTime = new Date(lastPlay).getTime();
+    const now = new Date().getTime();
+    const cooldownEnd = lastPlayTime + (5 * 60 * 1000); // 5 minutes
+    return Math.max(0, cooldownEnd - now);
+  };
+
+  // Format cooldown time
+  const formatCooldown = (ms: number): string => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Dice Game
+  const playDice = async () => {
+    if (isLoading) return;
+    
+    const canPlay = await checkCanPlay('dice');
+    if (!canPlay) {
+      const cooldown = getCooldownTime(gameStats.last_dice_play);
+      if (cooldown > 0) {
+        toast({
+          title: "Cooldown Attivo",
+          description: `Aspetta ancora ${formatCooldown(cooldown)} prima di giocare di nuovo`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Limite Raggiunto",
+          description: "Hai raggiunto il limite giornaliero di 10 partite",
+          variant: "destructive",
+        });
+      }
+      return;
     }
 
-    setIsPlaying(false);
+    setIsLoading(true);
+    const result = Math.floor(Math.random() * 6) + 1;
+    setDiceResult(result);
+    
+    let reward = 0;
+    if (result === 6) reward = 100;
+    else if (result >= 4) reward = 50;
+    else reward = 10;
+
+    if (currentPlayer && reward > 0) {
+      await updateResources({
+        cibo: currentPlayer.resources.cibo + reward
+      });
+    }
+
+    await updateGameStats('dice');
+    
+    toast({
+      title: `🎲 Hai ottenuto ${result}!`,
+      description: `Ricompensa: ${reward} Cibo`,
+    });
+    
+    setIsLoading(false);
   };
 
-  const getPlayCountToday = (gameType: string) => {
-    return gameStats?.[`${gameType}_plays_today`] || 0;
+  // Memory Game
+  const initializeMemory = () => {
+    const cards = [...Array(8)].map((_, i) => Math.floor(i / 2));
+    setMemoryCards(cards.sort(() => Math.random() - 0.5));
+    setFlippedCards([]);
+    setMatchedCards([]);
   };
 
-  const getCooldownMinutes = (gameType: string) => {
-    return cooldowns[gameType] || 0;
+  const playMemory = async () => {
+    if (isLoading) return;
+    
+    const canPlay = await checkCanPlay('memory');
+    if (!canPlay) {
+      const cooldown = getCooldownTime(gameStats.last_memory_play);
+      if (cooldown > 0) {
+        toast({
+          title: "Cooldown Attivo",
+          description: `Aspetta ancora ${formatCooldown(cooldown)} prima di giocare di nuovo`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Limite Raggiunto",
+          description: "Hai raggiunto il limite giornaliero di 10 partite",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    initializeMemory();
+    await updateGameStats('memory');
+    
+    toast({
+      title: "🧠 Memory Game Iniziato!",
+      description: "Trova tutte le coppie per vincere le ricompense!",
+    });
+    
+    setIsLoading(false);
+  };
+
+  // Slot Machine
+  const playSlot = async () => {
+    if (isLoading) return;
+    
+    const canPlay = await checkCanPlay('slot');
+    if (!canPlay) {
+      const cooldown = getCooldownTime(gameStats.last_slot_play);
+      if (cooldown > 0) {
+        toast({
+          title: "Cooldown Attivo",
+          description: `Aspetta ancora ${formatCooldown(cooldown)} prima di giocare di nuovo`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Limite Raggiunto",
+          description: "Hai raggiunto il limite giornaliero di 10 partite",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    const symbols = ['🍎', '🍊', '🍋', '🍇', '🍓', '💎'];
+    const result = [
+      symbols[Math.floor(Math.random() * symbols.length)],
+      symbols[Math.floor(Math.random() * symbols.length)],
+      symbols[Math.floor(Math.random() * symbols.length)]
+    ];
+    setSlotResult(result);
+    
+    let reward = 0;
+    if (result[0] === result[1] && result[1] === result[2]) {
+      if (result[0] === '💎') reward = 500;
+      else reward = 200;
+    } else if (result[0] === result[1] || result[1] === result[2] || result[0] === result[2]) {
+      reward = 50;
+    } else {
+      reward = 10;
+    }
+
+    if (currentPlayer && reward > 0) {
+      await updateResources({
+        pizza: currentPlayer.resources.pizza + reward
+      });
+    }
+
+    await updateGameStats('slot');
+    
+    toast({
+      title: `🎰 ${result.join(' ')}`,
+      description: `Ricompensa: ${reward} Pizza`,
+    });
+    
+    setIsLoading(false);
+  };
+
+  // Puzzle Game
+  const playPuzzle = async () => {
+    if (isLoading) return;
+    
+    const canPlay = await checkCanPlay('puzzle');
+    if (!canPlay) {
+      const cooldown = getCooldownTime(gameStats.last_puzzle_play);
+      if (cooldown > 0) {
+        toast({
+          title: "Cooldown Attivo",
+          description: `Aspetta ancora ${formatCooldown(cooldown)} prima di giocare di nuovo`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Limite Raggiunto",
+          description: "Hai raggiunto il limite giornaliero di 10 partite",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    const grid = Array.from({length: 9}, (_, i) => i + 1).sort(() => Math.random() - 0.5);
+    setPuzzleGrid(grid);
+    
+    const reward = Math.floor(Math.random() * 100) + 50;
+    if (currentPlayer) {
+      await updateResources({
+        pietra: currentPlayer.resources.pietra + reward
+      });
+    }
+
+    await updateGameStats('puzzle');
+    
+    toast({
+      title: "🧩 Puzzle Completato!",
+      description: `Ricompensa: ${reward} Pietra`,
+    });
+    
+    setIsLoading(false);
+  };
+
+  // Target Game
+  const playTarget = async () => {
+    if (isLoading) return;
+    
+    const canPlay = await checkCanPlay('target');
+    if (!canPlay) {
+      const cooldown = getCooldownTime(gameStats.last_target_play);
+      if (cooldown > 0) {
+        toast({
+          title: "Cooldown Attivo",
+          description: `Aspetta ancora ${formatCooldown(cooldown)} prima di giocare di nuovo`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Limite Raggiunto",
+          description: "Hai raggiunto il limite giornaliero di 10 partite",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    const target = Math.floor(Math.random() * 100) + 50;
+    const score = Math.floor(Math.random() * 150) + 25;
+    setTargetScore(target);
+    setCurrentScore(score);
+    
+    const reward = score >= target ? 80 : 20;
+    if (currentPlayer) {
+      await updateResources({
+        ferro: currentPlayer.resources.ferro + reward
+      });
+    }
+
+    await updateGameStats('target');
+    
+    toast({
+      title: `🎯 ${score >= target ? 'Centro!' : 'Mancato'}`,
+      description: `Ricompensa: ${reward} Ferro`,
+    });
+    
+    setIsLoading(false);
+  };
+
+  const getDiceIcon = (value: number) => {
+    switch (value) {
+      case 1: return <Dice1 className="w-8 h-8" />;
+      case 2: return <Dice2 className="w-8 h-8" />;
+      case 3: return <Dice3 className="w-8 h-8" />;
+      case 4: return <Dice4 className="w-8 h-8" />;
+      case 5: return <Dice5 className="w-8 h-8" />;
+      case 6: return <Dice6 className="w-8 h-8" />;
+      default: return <Dice1 className="w-8 h-8" />;
+    }
   };
 
   return (
-    <div className="h-full bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
-      <div className="max-w-6xl mx-auto h-full flex flex-col">
-        <div className="text-center py-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            🎮 Arena dei Minigames
-          </h1>
-          <p className="text-gray-600">
-            Gioca e guadagna risorse per il tuo regno!
-          </p>
-          <div className="mt-2 text-sm text-gray-500">
-            Limite giornaliero: {DAILY_PLAY_LIMIT} giocate per gioco • Cooldown: {COOLDOWN_MINUTES} minuti
-          </div>
-        </div>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold text-center mb-2">🎮 Minigames Arena</h2>
+        <p className="text-center text-gray-600">Gioca e vinci risorse! Limite: 10 partite al giorno per gioco</p>
+      </div>
 
-        <Tabs defaultValue="arcade" className="flex-1 flex flex-col">
-          <TabsList className="grid w-full grid-cols-2 mb-6 mx-4">
-            <TabsTrigger value="arcade" className="text-lg">🎰 Arcade</TabsTrigger>
-            <TabsTrigger value="strategy" className="text-lg">🧠 Strategia</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="arcade" className="flex-1">
-            <ScrollArea className="h-full px-4">
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 pb-6">
-                {/* Dice Game */}
-                <Card className="p-6 hover:shadow-lg transition-shadow bg-gradient-to-br from-red-50 to-orange-50">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">🎲</div>
-                    <h3 className="text-xl font-bold mb-2">Dadi della Fortuna</h3>
-                    <p className="text-gray-600 text-sm mb-4">
-                      Lancia 3 dadi e vinci risorse in base al risultato!
-                    </p>
-                    <div className="text-xs text-gray-500 mb-4">
-                      <div>• Tris: Premio MASSIMO!</div>
-                      <div>• 15+: Ottimo premio</div>
-                      <div>• 10+: Buon premio</div>
-                    </div>
-                    
-                    <div className="mb-4 text-xs">
-                      <div className="flex justify-between items-center mb-1">
-                        <span>Giocate oggi:</span>
-                        <Badge variant="outline">{getPlayCountToday('dice')}/{DAILY_PLAY_LIMIT}</Badge>
-                      </div>
-                      {getCooldownMinutes('dice') > 0 && (
-                        <div className="flex items-center text-orange-600">
-                          <Clock className="w-3 h-3 mr-1" />
-                          <span>Aspetta {getCooldownMinutes('dice')}min</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <Button 
-                      onClick={playDiceGame}
-                      disabled={isPlaying || getCooldownMinutes('dice') > 0 || getPlayCountToday('dice') >= DAILY_PLAY_LIMIT}
-                      className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-50"
-                    >
-                      {getCooldownMinutes('dice') > 0 ? (
-                        <>
-                          <Clock className="w-4 h-4 mr-2" />
-                          Aspetta {getCooldownMinutes('dice')}min
-                        </>
-                      ) : getPlayCountToday('dice') >= DAILY_PLAY_LIMIT ? (
-                        <>
-                          <Ban className="w-4 h-4 mr-2" />
-                          Limite raggiunto
-                        </>
-                      ) : (
-                        <>
-                          <Dices className="w-4 h-4 mr-2" />
-                          {isPlaying ? 'Lancio...' : 'Lancia i Dadi!'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* Slot Machine */}
-                <Card className="p-6 hover:shadow-lg transition-shadow bg-gradient-to-br from-yellow-50 to-orange-50">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">🎰</div>
-                    <h3 className="text-xl font-bold mb-2">Slot Reale</h3>
-                    <p className="text-gray-600 text-sm mb-4">
-                      Tre simboli uguali per il jackpot!
-                    </p>
-                    <div className="text-xs text-gray-500 mb-4">
-                      <div>🏆 Jackpot Supremo</div>
-                      <div>💎 Jackpot Prezioso</div>
-                      <div>🍕 Pizza Party</div>
-                    </div>
-                    
-                    <div className="mb-4 text-xs">
-                      <div className="flex justify-between items-center mb-1">
-                        <span>Giocate oggi:</span>
-                        <Badge variant="outline">{getPlayCountToday('slot')}/{DAILY_PLAY_LIMIT}</Badge>
-                      </div>
-                      {getCooldownMinutes('slot') > 0 && (
-                        <div className="flex items-center text-orange-600">
-                          <Clock className="w-3 h-3 mr-1" />
-                          <span>Aspetta {getCooldownMinutes('slot')}min</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <Button 
-                      onClick={playSlotMachine}
-                      disabled={isPlaying || getCooldownMinutes('slot') > 0 || getPlayCountToday('slot') >= DAILY_PLAY_LIMIT}
-                      className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50"
-                    >
-                      {getCooldownMinutes('slot') > 0 ? (
-                        <>
-                          <Clock className="w-4 h-4 mr-2" />
-                          Aspetta {getCooldownMinutes('slot')}min
-                        </>
-                      ) : getPlayCountToday('slot') >= DAILY_PLAY_LIMIT ? (
-                        <>
-                          <Ban className="w-4 h-4 mr-2" />
-                          Limite raggiunto
-                        </>
-                      ) : (
-                        <>
-                          <Coins className="w-4 h-4 mr-2" />
-                          {isPlaying ? 'Girando...' : 'Gira le Slot!'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-
-                {/* Memory Game */}
-                <Card className="p-6 hover:shadow-lg transition-shadow bg-gradient-to-br from-blue-50 to-purple-50">
-                  <div className="text-center">
-                    <div className="text-4xl mb-4">🧠</div>
-                    <h3 className="text-xl font-bold mb-2">Test di Memoria</h3>
-                    <p className="text-gray-600 text-sm mb-4">
-                      Sfida la tua memoria per bonus moltiplicatori!
-                    </p>
-                    <div className="text-xs text-gray-500 mb-4">
-                      <div>• Più veloce = Bonus maggiore</div>
-                      <div>• Allena la mente del sovrano</div>
-                    </div>
-                    
-                    <div className="mb-4 text-xs">
-                      <div className="flex justify-between items-center mb-1">
-                        <span>Giocate oggi:</span>
-                        <Badge variant="outline">{getPlayCountToday('memory')}/{DAILY_PLAY_LIMIT}</Badge>
-                      </div>
-                      {getCooldownMinutes('memory') > 0 && (
-                        <div className="flex items-center text-orange-600">
-                          <Clock className="w-3 h-3 mr-1" />
-                          <span>Aspetta {getCooldownMinutes('memory')}min</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <Button 
-                      onClick={playMemoryGame}
-                      disabled={isPlaying || getCooldownMinutes('memory') > 0 || getPlayCountToday('memory') >= DAILY_PLAY_LIMIT}
-                      className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
-                    >
-                      {getCooldownMinutes('memory') > 0 ? (
-                        <>
-                          <Clock className="w-4 h-4 mr-2" />
-                          Aspetta {getCooldownMinutes('memory')}min
-                        </>
-                      ) : getPlayCountToday('memory') >= DAILY_PLAY_LIMIT ? (
-                        <>
-                          <Ban className="w-4 h-4 mr-2" />
-                          Limite raggiunto
-                        </>
-                      ) : (
-                        <>
-                          <Target className="w-4 h-4 mr-2" />
-                          {isPlaying ? 'Pensando...' : 'Sfida la Memoria!'}
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-              </div>
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value="strategy" className="flex-1">
-            <div className="h-full flex items-center justify-center p-8">
-              <Card className="p-8 text-center max-w-md">
-                <div className="text-6xl mb-4">🚧</div>
-                <h3 className="text-2xl font-bold mb-4">Giochi di Strategia</h3>
-                <p className="text-gray-600 mb-4">
-                  I giochi di strategia sono in arrivo! Conquiste tattiche, battaglie navali e molto altro!
-                </p>
-                <Badge variant="outline" className="text-lg px-4 py-2">
-                  Prossimamente...
+      <ScrollArea className="h-[calc(100vh-200px)]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+          {/* Dice Game */}
+          <Card className="relative overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-blue-500 to-purple-600 text-white">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Dice1 className="w-6 h-6" />
+                  <span>🎲 Lancia il Dado</span>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white">
+                  {gameStats.dice_plays_today}/10
                 </Badge>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Results Display */}
-        {gameResult && (
-          <div className="p-4">
-            <Card className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
-              <div className="text-center">
-                <h3 className="text-xl font-bold mb-4 text-green-800">
-                  {gameResult.message}
-                </h3>
-                
-                {gameResult.type === 'dice' && (
-                  <div className="mb-4">
-                    <div className="flex justify-center space-x-4 text-4xl mb-2">
-                      {gameResult.dice.map((die: number, index: number) => (
-                        <div key={index} className="bg-white rounded-lg p-3 shadow-md">
-                          {die}
-                        </div>
-                      ))}
-                    </div>
-                    <p className="text-gray-600">Totale: {gameResult.total}</p>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                {diceResult && (
+                  <div className="flex justify-center">
+                    {getDiceIcon(diceResult)}
                   </div>
                 )}
-                
-                {gameResult.type === 'slot' && (
-                  <div className="mb-4">
-                    <div className="flex justify-center space-x-2 text-5xl mb-2">
-                      {gameResult.reels.map((symbol: string, index: number) => (
-                        <div key={index} className="bg-white rounded-lg p-4 shadow-md">
-                          {symbol}
-                        </div>
-                      ))}
-                    </div>
+                <Button 
+                  onClick={playDice} 
+                  disabled={isLoading || gameStats.dice_plays_today >= 10 || getCooldownTime(gameStats.last_dice_play) > 0}
+                  className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+                >
+                  {isLoading ? "Lanciando..." : 
+                   getCooldownTime(gameStats.last_dice_play) > 0 ? 
+                   `Cooldown: ${formatCooldown(getCooldownTime(gameStats.last_dice_play))}` :
+                   gameStats.dice_plays_today >= 10 ? "Limite Raggiunto" : "Lancia il Dado"}
+                </Button>
+                <div className="text-sm text-gray-600">
+                  <div>🍖 Ricompensa: 10-100 Cibo</div>
+                  <div className="flex items-center justify-center mt-2">
+                    <Timer className="w-4 h-4 mr-1" />
+                    Cooldown: 5 minuti
                   </div>
-                )}
-                
-                {gameResult.type === 'memory' && gameResult.success && (
-                  <div className="mb-4">
-                    <div className="text-3xl mb-2">🧠✨</div>
-                    <p className="text-gray-600">Bonus Velocità: x{gameResult.timeBonus}</p>
-                  </div>
-                )}
-                
-                <div className="flex justify-center space-x-4 text-sm flex-wrap">
-                  {gameResult.reward.cibo > 0 && (
-                    <Badge className="bg-orange-100 text-orange-800">
-                      <Wheat className="w-3 h-3 mr-1" />
-                      +{gameResult.reward.cibo} Cibo
-                    </Badge>
-                  )}
-                  {gameResult.reward.pietra > 0 && (
-                    <Badge className="bg-gray-100 text-gray-800">
-                      <Pickaxe className="w-3 h-3 mr-1" />
-                      +{gameResult.reward.pietra} Pietra
-                    </Badge>
-                  )}
-                  {gameResult.reward.ferro > 0 && (
-                    <Badge className="bg-red-100 text-red-800">
-                      <Zap className="w-3 h-3 mr-1" />
-                      +{gameResult.reward.ferro} Ferro
-                    </Badge>
-                  )}
-                  {gameResult.reward.pizza > 0 && (
-                    <Badge className="bg-yellow-100 text-yellow-800">
-                      <Pizza className="w-3 h-3 mr-1" />
-                      +{gameResult.reward.pizza} Pizza
-                    </Badge>
-                  )}
                 </div>
               </div>
-            </Card>
-          </div>
-        )}
-      </div>
+            </CardContent>
+          </Card>
+
+          {/* Memory Game */}
+          <Card className="relative overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-green-500 to-teal-600 text-white">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Brain className="w-6 h-6" />
+                  <span>🧠 Memory Game</span>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white">
+                  {gameStats.memory_plays_today}/10
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                {memoryCards.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {memoryCards.map((card, index) => (
+                      <div
+                        key={index}
+                        className={`w-12 h-12 rounded-lg flex items-center justify-center cursor-pointer transition-all ${
+                          flippedCards.includes(index) || matchedCards.includes(index)
+                            ? 'bg-green-500 text-white'
+                            : 'bg-gray-300 hover:bg-gray-400'
+                        }`}
+                        onClick={() => {
+                          if (!flippedCards.includes(index) && flippedCards.length < 2) {
+                            setFlippedCards([...flippedCards, index]);
+                          }
+                        }}
+                      >
+                        {flippedCards.includes(index) || matchedCards.includes(index) ? card : '?'}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button 
+                  onClick={playMemory} 
+                  disabled={isLoading || gameStats.memory_plays_today >= 10 || getCooldownTime(gameStats.last_memory_play) > 0}
+                  className="w-full bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700"
+                >
+                  {isLoading ? "Preparando..." : 
+                   getCooldownTime(gameStats.last_memory_play) > 0 ? 
+                   `Cooldown: ${formatCooldown(getCooldownTime(gameStats.last_memory_play))}` :
+                   gameStats.memory_plays_today >= 10 ? "Limite Raggiunto" : "Inizia Memory"}
+                </Button>
+                <div className="text-sm text-gray-600">
+                  <div>🍖 Ricompensa: 30-150 Cibo</div>
+                  <div className="flex items-center justify-center mt-2">
+                    <Timer className="w-4 h-4 mr-1" />
+                    Cooldown: 5 minuti
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Slot Machine */}
+          <Card className="relative overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-red-500 to-pink-600 text-white">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Coins className="w-6 h-6" />
+                  <span>🎰 Slot Machine</span>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white">
+                  {gameStats.slot_plays_today}/10
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                {slotResult.length > 0 && (
+                  <div className="text-4xl font-bold">
+                    {slotResult.join(' ')}
+                  </div>
+                )}
+                <Button 
+                  onClick={playSlot} 
+                  disabled={isLoading || gameStats.slot_plays_today >= 10 || getCooldownTime(gameStats.last_slot_play) > 0}
+                  className="w-full bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700"
+                >
+                  {isLoading ? "Girando..." : 
+                   getCooldownTime(gameStats.last_slot_play) > 0 ? 
+                   `Cooldown: ${formatCooldown(getCooldownTime(gameStats.last_slot_play))}` :
+                   gameStats.slot_plays_today >= 10 ? "Limite Raggiunto" : "Gira Slot"}
+                </Button>
+                <div className="text-sm text-gray-600">
+                  <div>🍕 Ricompensa: 10-500 Pizza</div>
+                  <div className="flex items-center justify-center mt-2">
+                    <Timer className="w-4 h-4 mr-1" />
+                    Cooldown: 5 minuti
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Puzzle Game */}
+          <Card className="relative overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Puzzle className="w-6 h-6" />
+                  <span>🧩 Puzzle Master</span>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white">
+                  {gameStats.puzzle_plays_today}/10
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                {puzzleGrid.length > 0 && (
+                  <div className="grid grid-cols-3 gap-1 mb-4">
+                    {puzzleGrid.map((num, index) => (
+                      <div
+                        key={index}
+                        className="w-12 h-12 bg-yellow-500 text-white rounded-lg flex items-center justify-center font-bold"
+                      >
+                        {num}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Button 
+                  onClick={playPuzzle} 
+                  disabled={isLoading || gameStats.puzzle_plays_today >= 10 || getCooldownTime(gameStats.last_puzzle_play) > 0}
+                  className="w-full bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700"
+                >
+                  {isLoading ? "Risolvendo..." : 
+                   getCooldownTime(gameStats.last_puzzle_play) > 0 ? 
+                   `Cooldown: ${formatCooldown(getCooldownTime(gameStats.last_puzzle_play))}` :
+                   gameStats.puzzle_plays_today >= 10 ? "Limite Raggiunto" : "Risolvi Puzzle"}
+                </Button>
+                <div className="text-sm text-gray-600">
+                  <div>🏗️ Ricompensa: 50-150 Pietra</div>
+                  <div className="flex items-center justify-center mt-2">
+                    <Timer className="w-4 h-4 mr-1" />
+                    Cooldown: 5 minuti
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Target Game */}
+          <Card className="relative overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Target className="w-6 h-6" />
+                  <span>🎯 Tiro al Bersaglio</span>
+                </div>
+                <Badge variant="secondary" className="bg-white/20 text-white">
+                  {gameStats.target_plays_today}/10
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="text-center space-y-4">
+                {targetScore > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-lg">Obiettivo: {targetScore}</div>
+                    <div className={`text-2xl font-bold ${currentScore >= targetScore ? 'text-green-600' : 'text-red-600'}`}>
+                      Il tuo punteggio: {currentScore}
+                    </div>
+                    <div className={`text-lg ${currentScore >= targetScore ? 'text-green-600' : 'text-red-600'}`}>
+                      {currentScore >= targetScore ? '🎯 CENTRO!' : '❌ MANCATO'}
+                    </div>
+                  </div>
+                )}
+                <Button 
+                  onClick={playTarget} 
+                  disabled={isLoading || gameStats.target_plays_today >= 10 || getCooldownTime(gameStats.last_target_play) > 0}
+                  className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
+                >
+                  {isLoading ? "Mirando..." : 
+                   getCooldownTime(gameStats.last_target_play) > 0 ? 
+                   `Cooldown: ${formatCooldown(getCooldownTime(gameStats.last_target_play))}` :
+                   gameStats.target_plays_today >= 10 ? "Limite Raggiunto" : "Spara!"}
+                </Button>
+                <div className="text-sm text-gray-600">
+                  <div>⚔️ Ricompensa: 20-80 Ferro</div>
+                  <div className="flex items-center justify-center mt-2">
+                    <Timer className="w-4 h-4 mr-1" />
+                    Cooldown: 5 minuti
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Daily Stats */}
+          <Card className="lg:col-span-2 bg-gradient-to-r from-gray-50 to-gray-100">
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Trophy className="w-6 h-6 text-yellow-500" />
+                <span>📊 Statistiche Giornaliere</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                <div className="space-y-2">
+                  <div className="text-2xl">🎲</div>
+                  <div className="font-bold">{gameStats.dice_plays_today}/10</div>
+                  <div className="text-sm text-gray-600">Dadi</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-2xl">🧠</div>
+                  <div className="font-bold">{gameStats.memory_plays_today}/10</div>
+                  <div className="text-sm text-gray-600">Memory</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-2xl">🎰</div>
+                  <div className="font-bold">{gameStats.slot_plays_today}/10</div>
+                  <div className="text-sm text-gray-600">Slot</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-2xl">🧩</div>
+                  <div className="font-bold">{gameStats.puzzle_plays_today}/10</div>
+                  <div className="text-sm text-gray-600">Puzzle</div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-2xl">🎯</div>
+                  <div className="font-bold">{gameStats.target_plays_today}/10</div>
+                  <div className="text-sm text-gray-600">Target</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </ScrollArea>
     </div>
   );
 };
