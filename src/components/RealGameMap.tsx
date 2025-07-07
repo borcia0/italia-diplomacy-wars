@@ -14,6 +14,13 @@ const RealGameMap = () => {
   const { regions, players, currentPlayer, buildings, armyUnits, conquestTerritory } = useSupabaseGame();
   const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
 
+  // Debug logging
+  console.log('🗺️ RealGameMap rendering:', { 
+    regionsCount: regions.length, 
+    currentPlayer: currentPlayer?.username,
+    loading: regions.length === 0 
+  });
+
   // Italian regions data with real coordinates and information
   const regionsData: Record<string, { 
     name: string; 
