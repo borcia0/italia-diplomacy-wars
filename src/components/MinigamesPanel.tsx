@@ -125,49 +125,68 @@ const MinigamesPanel = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const canPlayGame = (gameType: string) => {
-    // Controlla cooldown
-    if (cooldowns[gameType] > 0) {
-      return { canPlay: false, reason: `Aspetta ${cooldowns[gameType]} minuti` };
-    }
+  const canPlayGame = async (gameType: string) => {
+    if (!user) return { canPlay: false, reason: 'Utente non autenticato' };
 
-    // Controlla limite giornaliero
-    const today = new Date().toDateString();
-    const todayKey = `${gameType}_plays_${today.replace(/\s/g, '_')}`;
-    const todayPlays = gameStats?.[todayKey] || 0;
-    
-    if (todayPlays >= DAILY_PLAY_LIMIT) {
-      return { canPlay: false, reason: `Limite giornaliero raggiunto (${DAILY_PLAY_LIMIT})` };
-    }
+    try {
+      // Usa la funzione del database per verificare se può giocare
+      const { data, error } = await supabase.rpc('can_play_minigame', {
+        p_user_id: user.id,
+        p_game_type: gameType
+      });
 
-    return { canPlay: true };
+      if (error) {
+        console.error('Errore nella verifica:', error);
+        return { canPlay: false, reason: 'Errore di sistema' };
+      }
+
+      if (!data) {
+        // Se la funzione restituisce false, controlla il motivo
+        const stats = await supabase
+          .from('minigame_stats')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (stats.data) {
+          const todayPlays = stats.data[`${gameType}_plays_today`] || 0;
+          if (todayPlays >= DAILY_PLAY_LIMIT) {
+            return { canPlay: false, reason: `Limite giornaliero raggiunto (${DAILY_PLAY_LIMIT})` };
+          }
+
+          const lastPlay = stats.data[`last_${gameType}_play`];
+          if (lastPlay) {
+            const timeDiff = new Date().getTime() - new Date(lastPlay).getTime();
+            const minutesDiff = Math.floor(timeDiff / (1000 * 60));
+            if (minutesDiff < COOLDOWN_MINUTES) {
+              return { canPlay: false, reason: `Aspetta ${COOLDOWN_MINUTES - minutesDiff} minuti` };
+            }
+          }
+        }
+        
+        return { canPlay: false, reason: 'Non puoi giocare ora' };
+      }
+
+      return { canPlay: true };
+    } catch (error) {
+      console.error('Errore nella verifica del gioco:', error);
+      return { canPlay: false, reason: 'Errore di sistema' };
+    }
   };
 
   const updateGameStats = async (gameType: string) => {
     if (!user) return;
 
-    const now = new Date();
-    const today = new Date().toDateString();
-    const todayKey = `${gameType}_plays_${today.replace(/\s/g, '_')}`;
-    
-    const updateData: any = {
-      [`last_${gameType}_play`]: now.toISOString(),
-      [todayKey]: (gameStats?.[todayKey] || 0) + 1
-    };
-
     try {
-      const { error } = await (supabase as any)
-        .from('minigame_stats')
-        .upsert({
-          user_id: user.id,
-          ...gameStats,
-          ...updateData
-        });
+      const { error } = await supabase.rpc('update_minigame_stats', {
+        p_user_id: user.id,
+        p_game_type: gameType
+      });
 
       if (error) throw error;
 
-      setGameStats(prev => ({ ...prev, ...updateData } as MinigameStats));
-      setCooldowns(prev => ({ ...prev, [gameType]: COOLDOWN_MINUTES }));
+      // Ricarica le statistiche
+      await loadGameStats();
     } catch (error) {
       console.error('Errore nell\'aggiornamento delle statistiche:', error);
     }
@@ -177,7 +196,7 @@ const MinigamesPanel = () => {
   const playDiceGame = async () => {
     if (!user || isPlaying) return;
     
-    const playCheck = canPlayGame('dice');
+    const playCheck = await canPlayGame('dice');
     if (!playCheck.canPlay) {
       toast.error(playCheck.reason);
       return;
@@ -248,7 +267,7 @@ const MinigamesPanel = () => {
   const playMemoryGame = async () => {
     if (!user || isPlaying) return;
     
-    const playCheck = canPlayGame('memory');
+    const playCheck = await canPlayGame('memory');
     if (!playCheck.canPlay) {
       toast.error(playCheck.reason);
       return;
@@ -313,7 +332,7 @@ const MinigamesPanel = () => {
   const playSlotMachine = async () => {
     if (!user || isPlaying) return;
     
-    const playCheck = canPlayGame('slot');
+    const playCheck = await canPlayGame('slot');
     if (!playCheck.canPlay) {
       toast.error(playCheck.reason);
       return;
@@ -386,9 +405,11 @@ const MinigamesPanel = () => {
   };
 
   const getPlayCountToday = (gameType: string) => {
-    const today = new Date().toDateString();
-    const todayKey = `${gameType}_plays_${today.replace(/\s/g, '_')}`;
-    return gameStats?.[todayKey] || 0;
+    return gameStats?.[`${gameType}_plays_today`] || 0;
+  };
+
+  const getCooldownMinutes = (gameType: string) => {
+    return cooldowns[gameType] || 0;
   };
 
   return (
@@ -434,23 +455,23 @@ const MinigamesPanel = () => {
                         <span>Giocate oggi:</span>
                         <Badge variant="outline">{getPlayCountToday('dice')}/{DAILY_PLAY_LIMIT}</Badge>
                       </div>
-                      {cooldowns.dice > 0 && (
+                      {getCooldownMinutes('dice') > 0 && (
                         <div className="flex items-center text-orange-600">
                           <Clock className="w-3 h-3 mr-1" />
-                          <span>Aspetta {cooldowns.dice}min</span>
+                          <span>Aspetta {getCooldownMinutes('dice')}min</span>
                         </div>
                       )}
                     </div>
                     
                     <Button 
                       onClick={playDiceGame}
-                      disabled={isPlaying || cooldowns.dice > 0 || getPlayCountToday('dice') >= DAILY_PLAY_LIMIT}
+                      disabled={isPlaying || getCooldownMinutes('dice') > 0 || getPlayCountToday('dice') >= DAILY_PLAY_LIMIT}
                       className="w-full bg-red-500 hover:bg-red-600 disabled:opacity-50"
                     >
-                      {cooldowns.dice > 0 ? (
+                      {getCooldownMinutes('dice') > 0 ? (
                         <>
                           <Clock className="w-4 h-4 mr-2" />
-                          Aspetta {cooldowns.dice}min
+                          Aspetta {getCooldownMinutes('dice')}min
                         </>
                       ) : getPlayCountToday('dice') >= DAILY_PLAY_LIMIT ? (
                         <>
@@ -486,23 +507,23 @@ const MinigamesPanel = () => {
                         <span>Giocate oggi:</span>
                         <Badge variant="outline">{getPlayCountToday('slot')}/{DAILY_PLAY_LIMIT}</Badge>
                       </div>
-                      {cooldowns.slot > 0 && (
+                      {getCooldownMinutes('slot') > 0 && (
                         <div className="flex items-center text-orange-600">
                           <Clock className="w-3 h-3 mr-1" />
-                          <span>Aspetta {cooldowns.slot}min</span>
+                          <span>Aspetta {getCooldownMinutes('slot')}min</span>
                         </div>
                       )}
                     </div>
                     
                     <Button 
                       onClick={playSlotMachine}
-                      disabled={isPlaying || cooldowns.slot > 0 || getPlayCountToday('slot') >= DAILY_PLAY_LIMIT}
+                      disabled={isPlaying || getCooldownMinutes('slot') > 0 || getPlayCountToday('slot') >= DAILY_PLAY_LIMIT}
                       className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50"
                     >
-                      {cooldowns.slot > 0 ? (
+                      {getCooldownMinutes('slot') > 0 ? (
                         <>
                           <Clock className="w-4 h-4 mr-2" />
-                          Aspetta {cooldowns.slot}min
+                          Aspetta {getCooldownMinutes('slot')}min
                         </>
                       ) : getPlayCountToday('slot') >= DAILY_PLAY_LIMIT ? (
                         <>
@@ -537,23 +558,23 @@ const MinigamesPanel = () => {
                         <span>Giocate oggi:</span>
                         <Badge variant="outline">{getPlayCountToday('memory')}/{DAILY_PLAY_LIMIT}</Badge>
                       </div>
-                      {cooldowns.memory > 0 && (
+                      {getCooldownMinutes('memory') > 0 && (
                         <div className="flex items-center text-orange-600">
                           <Clock className="w-3 h-3 mr-1" />
-                          <span>Aspetta {cooldowns.memory}min</span>
+                          <span>Aspetta {getCooldownMinutes('memory')}min</span>
                         </div>
                       )}
                     </div>
                     
                     <Button 
                       onClick={playMemoryGame}
-                      disabled={isPlaying || cooldowns.memory > 0 || getPlayCountToday('memory') >= DAILY_PLAY_LIMIT}
+                      disabled={isPlaying || getCooldownMinutes('memory') > 0 || getPlayCountToday('memory') >= DAILY_PLAY_LIMIT}
                       className="w-full bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
                     >
-                      {cooldowns.memory > 0 ? (
+                      {getCooldownMinutes('memory') > 0 ? (
                         <>
                           <Clock className="w-4 h-4 mr-2" />
-                          Aspetta {cooldowns.memory}min
+                          Aspetta {getCooldownMinutes('memory')}min
                         </>
                       ) : getPlayCountToday('memory') >= DAILY_PLAY_LIMIT ? (
                         <>
