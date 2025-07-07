@@ -9,6 +9,7 @@ import MinigamesPanel from './MinigamesPanel';
 import MarketPanel from './MarketPanel';
 import DiplomacyPanel from './DiplomacyPanel';
 import ChatPanel from './ChatPanel';
+import ResourcesPanel from './ResourcesPanel';
 import { Button } from '@/components/ui/button';
 import { LogOut, Crown, Wheat, Pickaxe, Zap, Pizza } from 'lucide-react';
 
@@ -27,7 +28,7 @@ const GameLayout = () => {
               <div className="flex items-center space-x-2">
                 <Crown className="w-8 h-8 text-yellow-500" />
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                  Regno d'Italia 2024
+                  Regno d'Italia 2025
                 </h1>
               </div>
               <Badge variant="outline" className="bg-blue-50 text-blue-700">
@@ -80,9 +81,12 @@ const GameLayout = () => {
       {/* Main Content */}
       <div className="container mx-auto px-4 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 bg-white/80 backdrop-blur-sm">
+          <TabsList className="grid w-full grid-cols-6 bg-white/80 backdrop-blur-sm">
             <TabsTrigger value="map" className="flex items-center space-x-2">
               <span>🗺️ Mappa</span>
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="flex items-center space-x-2">
+              <span>🏰 Regno</span>
             </TabsTrigger>
             <TabsTrigger value="minigames" className="flex items-center space-x-2">
               <span>🎮 Minigames</span>
@@ -101,6 +105,10 @@ const GameLayout = () => {
           <div className="mt-6 bg-white/80 backdrop-blur-sm rounded-lg shadow-lg min-h-[calc(100vh-200px)]">
             <TabsContent value="map" className="h-full">
               <RealGameMap />
+            </TabsContent>
+
+            <TabsContent value="resources" className="h-full">
+              <ResourcesPanel />
             </TabsContent>
 
             <TabsContent value="minigames" className="h-full">
