@@ -1,330 +1,328 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useSupabaseGame } from '@/hooks/useSupabaseGame';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Handshake, Sword, Shield, Users, MessageSquare, Crown, AlertTriangle } from 'lucide-react';
+import { useSupabaseAuth } from '@/hooks/useSupabaseAuth';
+import { Sword, Shield, Crown, Users, MessageSquare, Target } from 'lucide-react';
+import { Database } from '@/integrations/supabase/types';
+
+type RegionName = Database['public']['Enums']['region_name'];
 
 const DiplomacyPanel = () => {
-  const { players, alliances, wars, currentPlayer, proposeAlliance, acceptAlliance, rejectAlliance, declareWar } = useSupabaseGame();
-  const { toast } = useToast();
-  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const { user } = useSupabaseAuth();
+  const { 
+    players, 
+    regions, 
+    alliances, 
+    wars, 
+    currentPlayer,
+    declareWar,
+    proposeAlliance,
+    acceptAlliance,
+    rejectAlliance
+  } = useSupabaseGame();
+  
+  const [selectedTarget, setSelectedTarget] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<RegionName>('lazio');
   const [allianceMessage, setAllianceMessage] = useState('');
 
-  // Filtra solo i giocatori reali (non bot)
+  // Filter out bot players and current player
   const realPlayers = players.filter(player => 
-    player.id !== currentPlayer?.id &&
+    player.id !== user?.id &&
     player.email && 
     player.email.includes('@') && 
-    !player.username.toLowerCase().includes('giocatore') &&
     !player.username.toLowerCase().includes('bot') &&
     !player.username.toLowerCase().includes('ai') &&
     !player.username.toLowerCase().includes('cpu') &&
+    !player.username.toLowerCase().includes('giocatore') &&
     player.email !== 'bot@example.com'
   );
 
-  // Filtra alleanze e guerre per mostrare solo quelle con giocatori reali
+  // Filter real alliances (no bots)
   const realAlliances = alliances.filter(alliance => {
     const proposer = players.find(p => p.id === alliance.proposer_id);
     const target = players.find(p => p.id === alliance.target_id);
     return proposer && target && 
-           !proposer.username.toLowerCase().includes('giocatore') && 
-           !target.username.toLowerCase().includes('giocatore') &&
-           !proposer.username.toLowerCase().includes('bot') &&
-           !target.username.toLowerCase().includes('bot');
+           proposer.email?.includes('@') && target.email?.includes('@') &&
+           !proposer.username.toLowerCase().includes('bot') && 
+           !target.username.toLowerCase().includes('bot') &&
+           !proposer.username.toLowerCase().includes('giocatore') &&
+           !target.username.toLowerCase().includes('giocatore');
   });
 
+  // Filter real wars (no bots)
   const realWars = wars.filter(war => {
     const attacker = players.find(p => p.id === war.attacker_id);
     const defender = players.find(p => p.id === war.defender_id);
     return attacker && defender && 
-           !attacker.username.toLowerCase().includes('giocatore') && 
-           !defender.username.toLowerCase().includes('giocatore') &&
-           !attacker.username.toLowerCase().includes('bot') &&
-           !defender.username.toLowerCase().includes('bot');
+           attacker.email?.includes('@') && defender.email?.includes('@') &&
+           !attacker.username.toLowerCase().includes('bot') && 
+           !defender.username.toLowerCase().includes('bot') &&
+           !attacker.username.toLowerCase().includes('giocatore') &&
+           !defender.username.toLowerCase().includes('giocatore');
   });
 
-  const handleProposeAlliance = async (targetId: string) => {
-    if (!currentPlayer) return;
+  const handleDeclareWar = async () => {
+    if (selectedTarget && selectedRegion) {
+      await declareWar(selectedTarget, selectedRegion);
+      setSelectedTarget('');
+      setSelectedRegion('lazio');
+    }
+  };
 
-    try {
-      await proposeAlliance(targetId, allianceMessage || 'Proposta di alleanza');
+  const handleProposeAlliance = async () => {
+    if (selectedTarget) {
+      await proposeAlliance(selectedTarget, allianceMessage || 'Proposta di alleanza');
+      setSelectedTarget('');
       setAllianceMessage('');
-      setSelectedPlayer(null);
-    } catch (error) {
-      console.error('Error proposing alliance:', error);
     }
-  };
-
-  const handleDeclareWar = async (targetId: string) => {
-    if (!currentPlayer) return;
-
-    try {
-      // Trova una regione del target per la guerra
-      const targetPlayer = players.find(p => p.id === targetId);
-      if (!targetPlayer) return;
-
-      await declareWar(targetId, targetPlayer.current_region || 'lazio');
-    } catch (error) {
-      console.error('Error declaring war:', error);
-    }
-  };
-
-  const getRelationshipStatus = (playerId: string) => {
-    const alliance = realAlliances.find(a => 
-      (a.proposer_id === currentPlayer?.id && a.target_id === playerId) ||
-      (a.target_id === currentPlayer?.id && a.proposer_id === playerId)
-    );
-
-    const war = realWars.find(w => 
-      (w.attacker_id === currentPlayer?.id && w.defender_id === playerId) ||
-      (w.defender_id === currentPlayer?.id && w.attacker_id === playerId)
-    );
-
-    if (alliance) {
-      return { type: 'alliance', status: alliance.status, data: alliance };
-    }
-    if (war) {
-      return { type: 'war', status: war.status, data: war };
-    }
-    return { type: 'neutral', status: null, data: null };
-  };
-
-  const getPendingAlliances = () => {
-    return realAlliances.filter(a => 
-      a.target_id === currentPlayer?.id && a.status === 'pending'
-    );
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center space-x-2 mb-6">
-        <Crown className="w-6 h-6 text-purple-600" />
-        <h2 className="text-2xl font-bold">Diplomazia del Regno</h2>
+    <div className="p-6 max-w-4xl mx-auto">
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold text-center mb-2">👑 Centro Diplomatico</h2>
+        <p className="text-center text-gray-600">Gestisci alleanze e dichiarazioni di guerra</p>
       </div>
 
-      {/* Richieste di Alleanza Pendenti */}
-      {getPendingAlliances().length > 0 && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2 text-blue-800">
-              <MessageSquare className="w-5 h-5" />
-              <span>📨 Richieste di Alleanza</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {getPendingAlliances().map((alliance) => {
-                const proposer = players.find(p => p.id === alliance.proposer_id);
-                return (
-                  <div key={alliance.id} className="bg-white p-4 rounded-lg border">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">{proposer?.username}</div>
-                        <div className="text-sm text-gray-600">{alliance.message}</div>
-                        <div className="text-xs text-gray-500">
-                          {new Date(alliance.created_at || '').toLocaleDateString()}
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        <Button
-                          size="sm"
-                          onClick={() => acceptAlliance(alliance.id)}
-                          className="bg-green-600 hover:bg-green-700"
-                        >
-                          Accetta
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => rejectAlliance(alliance.id)}
-                        >
-                          Rifiuta
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <Tabs defaultValue="actions" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="actions">Azioni Diplomazia</TabsTrigger>
+          <TabsTrigger value="alliances">Alleanze</TabsTrigger>
+          <TabsTrigger value="wars">Guerre</TabsTrigger>
+        </TabsList>
 
-      {/* Lista Giocatori */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Users className="w-5 h-5" />
-            <span>👥 Altri Giocatori ({realPlayers.length})</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-96">
-            {realPlayers.length > 0 ? (
-              <div className="space-y-4">
-                {realPlayers.map((player) => {
-                  const relationship = getRelationshipStatus(player.id);
+        <TabsContent value="actions" className="space-y-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Alliance Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Shield className="w-5 h-5 text-blue-600" />
+                  <span>Proponi Alleanza</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Select value={selectedTarget} onValueChange={setSelectedTarget}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona un giocatore" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {realPlayers.map((player) => (
+                      <SelectItem key={player.id} value={player.id}>
+                        {player.username} ({player.current_region})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Textarea
+                  placeholder="Messaggio dell'alleanza (opzionale)"
+                  value={allianceMessage}
+                  onChange={(e) => setAllianceMessage(e.target.value)}
+                  rows={3}
+                />
+
+                <Button 
+                  onClick={handleProposeAlliance}
+                  disabled={!selectedTarget}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  <Shield className="w-4 h-4 mr-2" />
+                  Proponi Alleanza
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* War Section */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Sword className="w-5 h-5 text-red-600" />
+                  <span>Dichiara Guerra</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Select value={selectedTarget} onValueChange={setSelectedTarget}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona un nemico" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {realPlayers.map((player) => (
+                      <SelectItem key={player.id} value={player.id}>
+                        {player.username} ({player.current_region})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={selectedRegion} onValueChange={(value) => setSelectedRegion(value as RegionName)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleziona regione obiettivo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {regions.filter(r => r.owner_id === selectedTarget).map((region) => (
+                      <SelectItem key={region.id} value={region.name}>
+                        {region.capital} ({region.name})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <div className="text-sm text-gray-600">
+                  <p>Costo: 50 Ferro + 100 Cibo</p>
+                </div>
+
+                <Button 
+                  onClick={handleDeclareWar}
+                  disabled={!selectedTarget || !selectedRegion}
+                  className="w-full bg-red-600 hover:bg-red-700"
+                >
+                  <Sword className="w-4 h-4 mr-2" />
+                  Dichiara Guerra
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="alliances">
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold flex items-center space-x-2">
+              <Users className="w-5 h-5" />
+              <span>Gestione Alleanze</span>
+            </h3>
+
+            {realAlliances.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Users className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-600">Nessuna alleanza attiva</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4">
+                {realAlliances.map((alliance) => {
+                  const proposer = players.find(p => p.id === alliance.proposer_id);
+                  const target = players.find(p => p.id === alliance.target_id);
+                  const isTargeted = alliance.target_id === user?.id;
+                  const isProposer = alliance.proposer_id === user?.id;
+
                   return (
-                    <div key={player.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">
-                            {player.username.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-semibold">{player.username}</div>
-                            <div className="text-sm text-gray-600">
-                              Regione: {player.current_region || 'Sconosciuta'}
+                    <Card key={alliance.id}>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={
+                                alliance.status === 'active' ? 'default' :
+                                alliance.status === 'pending' ? 'secondary' :
+                                alliance.status === 'rejected' ? 'destructive' : 'outline'
+                              }>
+                                {alliance.status === 'active' ? 'Attiva' :
+                                 alliance.status === 'pending' ? 'In Attesa' :
+                                 alliance.status === 'rejected' ? 'Rifiutata' : 'Sconosciuto'}
+                              </Badge>
+                              <span className="font-medium">
+                                {isProposer ? `Tu → ${target?.username}` : `${proposer?.username} → Tu`}
+                              </span>
                             </div>
-                            <div className="flex items-center space-x-2 mt-1">
-                              {relationship.type === 'alliance' && relationship.status === 'active' && (
-                                <Badge className="bg-green-100 text-green-800">
-                                  <Handshake className="w-3 h-3 mr-1" />
-                                  Alleato
-                                </Badge>
-                              )}
-                              {relationship.type === 'alliance' && relationship.status === 'pending' && (
-                                <Badge className="bg-yellow-100 text-yellow-800">
-                                  <MessageSquare className="w-3 h-3 mr-1" />
-                                  In Attesa
-                                </Badge>
-                              )}
-                              {relationship.type === 'war' && (
-                                <Badge className="bg-red-100 text-red-800">
-                                  <Sword className="w-3 h-3 mr-1" />
-                                  In Guerra
-                                </Badge>
-                              )}
-                            </div>
+                            {alliance.message && (
+                              <p className="text-sm text-gray-600">{alliance.message}</p>
+                            )}
                           </div>
-                        </div>
 
-                        <div className="flex flex-col space-y-2">
-                          {relationship.type === 'neutral' && (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => setSelectedPlayer(selectedPlayer === player.id ? null : player.id)}
-                                className="bg-blue-600 hover:bg-blue-700"
-                              >
-                                <Handshake className="w-4 h-4 mr-1" />
-                                Proponi Alleanza
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleDeclareWar(player.id)}
-                              >
-                                <Sword className="w-4 h-4 mr-1" />
-                                Dichiara Guerra
-                              </Button>
-                            </>
-                          )}
-                          {relationship.type === 'alliance' && relationship.status === 'active' && (
-                            <Button size="sm" variant="outline" disabled>
-                              <Shield className="w-4 h-4 mr-1" />
-                              Alleanza Attiva
-                            </Button>
-                          )}
-                          {relationship.type === 'war' && (
-                            <Button size="sm" variant="destructive" disabled>
-                              <AlertTriangle className="w-4 h-4 mr-1" />
-                              Stato di Guerra
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Form Alleanza */}
-                      {selectedPlayer === player.id && (
-                        <div className="mt-4 p-4 bg-blue-50 rounded-lg border-t">
-                          <div className="space-y-3">
-                            <Textarea
-                              placeholder="Messaggio di alleanza (opzionale)"
-                              value={allianceMessage}
-                              onChange={(e) => setAllianceMessage(e.target.value)}
-                              className="resize-none"
-                              rows={3}
-                            />
+                          {isTargeted && alliance.status === 'pending' && (
                             <div className="flex space-x-2">
                               <Button
                                 size="sm"
-                                onClick={() => handleProposeAlliance(player.id)}
+                                onClick={() => acceptAlliance(alliance.id)}
                                 className="bg-green-600 hover:bg-green-700"
                               >
-                                Invia Proposta
+                                Accetta
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => {
-                                  setSelectedPlayer(null);
-                                  setAllianceMessage('');
-                                }}
+                                onClick={() => rejectAlliance(alliance.id)}
                               >
-                                Annulla
+                                Rifiuta
                               </Button>
                             </div>
-                          </div>
+                          )}
                         </div>
-                      )}
-                    </div>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="wars">
+          <div className="space-y-4">
+            <h3 className="text-xl font-semibold flex items-center space-x-2">
+              <Target className="w-5 h-5" />
+              <span>Conflitti Attivi</span>
+            </h3>
+
+            {realWars.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Target className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-600">Nessun conflitto attivo</p>
+                </CardContent>
+              </Card>
             ) : (
-              <div className="text-center py-12">
-                <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-600 mb-2">
-                  Nessun altro giocatore online
-                </h3>
-                <p className="text-gray-500">
-                  Aspetta che altri giocatori si uniscano al regno per iniziare le tue manovre diplomatiche!
-                </p>
+              <div className="grid gap-4">
+                {realWars.map((war) => {
+                  const attacker = players.find(p => p.id === war.attacker_id);
+                  const defender = players.find(p => p.id === war.defender_id);
+                  const isInvolved = war.attacker_id === user?.id || war.defender_id === user?.id;
+
+                  return (
+                    <Card key={war.id} className={isInvolved ? 'border-red-200 bg-red-50' : ''}>
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2">
+                              <Badge variant={
+                                war.status === 'declared' ? 'destructive' :
+                                war.status === 'active' ? 'default' : 'secondary'
+                              }>
+                                {war.status === 'declared' ? 'Dichiarata' :
+                                 war.status === 'active' ? 'In Corso' : 'Conclusa'}
+                              </Badge>
+                              <span className="font-medium">
+                                {attacker?.username} vs {defender?.username}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600">
+                              Obiettivo: {war.target_region}
+                            </p>
+                            {war.result && (
+                              <p className="text-sm font-medium">
+                                Risultato: {war.result}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
-          </ScrollArea>
-        </CardContent>
-      </Card>
-
-      {/* Statistiche Diplomazia */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="text-center">
-          <CardContent className="p-6">
-            <div className="text-2xl mb-2">🤝</div>
-            <div className="text-2xl font-bold text-green-600">
-              {realAlliances.filter(a => a.status === 'active' && (a.proposer_id === currentPlayer?.id || a.target_id === currentPlayer?.id)).length}
-            </div>
-            <div className="text-sm text-gray-600">Alleanze Attive</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="text-center">
-          <CardContent className="p-6">
-            <div className="text-2xl mb-2">⚔️</div>
-            <div className="text-2xl font-bold text-red-600">
-              {realWars.filter(w => w.status === 'active' && (w.attacker_id === currentPlayer?.id || w.defender_id === currentPlayer?.id)).length}
-            </div>
-            <div className="text-sm text-gray-600">Guerre Attive</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="text-center">
-          <CardContent className="p-6">
-            <div className="text-2xl mb-2">📨</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {getPendingAlliances().length}
-            </div>
-            <div className="text-sm text-gray-600">Richieste Pendenti</div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

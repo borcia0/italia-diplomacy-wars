@@ -147,9 +147,13 @@ export type Database = {
           id: string
           last_dice_play: string | null
           last_memory_play: string | null
+          last_puzzle_play: string | null
           last_slot_play: string | null
+          last_target_play: string | null
           memory_plays_today: number | null
+          puzzle_plays_today: number | null
           slot_plays_today: number | null
+          target_plays_today: number | null
           updated_at: string
           user_id: string
         }
@@ -159,9 +163,13 @@ export type Database = {
           id?: string
           last_dice_play?: string | null
           last_memory_play?: string | null
+          last_puzzle_play?: string | null
           last_slot_play?: string | null
+          last_target_play?: string | null
           memory_plays_today?: number | null
+          puzzle_plays_today?: number | null
           slot_plays_today?: number | null
+          target_plays_today?: number | null
           updated_at?: string
           user_id: string
         }
@@ -171,9 +179,13 @@ export type Database = {
           id?: string
           last_dice_play?: string | null
           last_memory_play?: string | null
+          last_puzzle_play?: string | null
           last_slot_play?: string | null
+          last_target_play?: string | null
           memory_plays_today?: number | null
+          puzzle_plays_today?: number | null
           slot_plays_today?: number | null
+          target_plays_today?: number | null
           updated_at?: string
           user_id?: string
         }

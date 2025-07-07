@@ -14,7 +14,7 @@ import { LogOut, Crown, Wheat, Pickaxe, Zap, Pizza } from 'lucide-react';
 
 const GameLayout = () => {
   const { currentPlayer, players } = useSupabaseGame();
-  const { signOut } = useSupabaseAuth();
+  const { logout } = useSupabaseAuth();
   const [activeTab, setActiveTab] = useState('map');
 
   return (
@@ -66,7 +66,7 @@ const GameLayout = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => signOut()}
+                  onClick={() => logout()}
                   className="text-red-600 hover:text-red-700"
                 >
                   <LogOut className="w-4 h-4" />
